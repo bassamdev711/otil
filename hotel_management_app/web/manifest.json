@@ -1,12 +1,12 @@
 {
-    "name": "النخبة لإدارة الفندق",
-    "short_name": "النخبة",
+    "name": "مفتاح لإدارة الفندق",
+    "short_name": "مفتاح",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F6F8FA",
     "theme_color": "#0B2545",
-    "description": "نظام محلي منظم لإدارة الغرف والحجوزات والعملاء والعمليات اليومية للفندق.",
-    "orientation": "portrait-primary",
+    "description": "مفتاح لإدارة الغرف والحجوزات والعملاء والعمليات اليومية للفندق.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

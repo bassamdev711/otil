@@ -136,7 +136,7 @@ class AppController extends ChangeNotifier {
   List<RoomRecord> rooms = [];
   List<GuestRecord> guests = [];
   List<BookingRecord> bookings = [];
-  String hotelName = 'فندق النخبة';
+  String hotelName = 'مفتاح لإدارة الفندق';
   final Map<String, GuestRecord> _guestIndex = {};
   final Map<String, RoomRecord> _roomIndex = {};
   final Map<String, BookingRecord> _activeBookingByRoom = {};
@@ -189,6 +189,10 @@ class AppController extends ChangeNotifier {
       guests = _readList('guests', GuestRecord.fromMap);
       bookings = _readList('bookings', BookingRecord.fromMap);
       hotelName = _store.readMeta('hotelName', defaultValue: hotelName);
+      if (hotelName == 'فندق النخبة' || hotelName == 'النخبة') {
+        hotelName = 'مفتاح لإدارة الفندق';
+        await _store.putMeta('hotelName', hotelName);
+      }
     }
     _rebuildIndexes();
     initialized = true;
@@ -285,7 +289,7 @@ class AppController extends ChangeNotifier {
   }
   Future<void> changeBookingStatus(BookingRecord booking, String status) async { if (!canOperateStay) return; booking.status = status; final room = roomById(booking.roomId); if (room != null && status == 'checkedIn') room.status = 'occupied'; if (room != null && status == 'checkedOut') room.status = 'cleaning'; _rebuildIndexes(); await _save(); notifyListeners(); }
   Future<void> addUser(String name, String username, String password, String role) async { if (!isAdmin) return; final salt = _uuid.v4(); users.add(UserRecord(id: _uuid.v4(), name: name, username: username.trim().toLowerCase(), passwordHash: hashPassword(password, salt: salt), passwordSalt: salt, role: role)); await _save(); notifyListeners(); }
-  Future<void> updateHotelName(String value) async { if (!isAdmin) return; hotelName = value.trim().isEmpty ? 'فندق النخبة' : value.trim(); await _save(); notifyListeners(); }
+  Future<void> updateHotelName(String value) async { if (!isAdmin) return; hotelName = value.trim().isEmpty ? 'مفتاح لإدارة الفندق' : value.trim(); await _save(); notifyListeners(); }
 }
 
 class HotelApp extends ConsumerWidget {
@@ -346,7 +350,7 @@ class BrandMark extends StatelessWidget {
   final double size;
   final bool showLabel;
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [ClipRRect(borderRadius: BorderRadius.circular(size * .24), child: Image.asset('assets/brand/app_icon.png', width: size, height: size, fit: BoxFit.cover)), if (showLabel) ...[const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('النخبة', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: const Color(0xff0b2545))), Text('إدارة الفندق', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xff168b8f)))])]]);
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [ClipRRect(borderRadius: BorderRadius.circular(size * .24), child: Image.asset('assets/brand/app_icon.png', width: size, height: size, fit: BoxFit.cover)), if (showLabel) ...[const SizedBox(width: 12), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('مفتاح', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: const Color(0xff0b2545))), Text('تشغيل الفندق', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: const Color(0xff168b8f)))])]]);
 }
 
 String roleLabel(String? role) => {'admin': 'مدير النظام', 'receptionist': 'موظف استقبال', 'nightShift': 'وردية ليلية', 'dayShift': 'وردية نهارية'}[role] ?? 'مستخدم';
