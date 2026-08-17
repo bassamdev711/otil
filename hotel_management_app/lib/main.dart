@@ -661,9 +661,9 @@ class RoomCard extends ConsumerWidget {
     final c = ref.watch(appControllerProvider);
     final booking = c.activeBookingForRoom(room.id);
     final guest = booking == null ? null : c.guestById(booking.guestId);
-    final guestSummary = guest == null
+    final guestSummary = booking == null || guest == null
         ? Row(children: [Icon(room.status == 'available' ? Icons.check_circle_outline : Icons.info_outline, size: 18, color: statusColor(room.status)), const SizedBox(width: 8), Text(room.status == 'available' ? 'جاهزة للحجز' : statusLabel(room.status))])
-        : Row(children: [const Icon(Icons.person_outline, size: 18), const SizedBox(width: 8), Expanded(child: Text(guest.name, overflow: TextOverflow.ellipsis)), Text(dateLabel(booking!.checkOut), style: TextStyle(color: Colors.grey[600], fontSize: 12))]);
+        : Row(children: [const Icon(Icons.person_outline, size: 18), const SizedBox(width: 8), Expanded(child: Text(guest.name, overflow: TextOverflow.ellipsis)), Text(dateLabel(booking.checkOut), style: TextStyle(color: Colors.grey[600], fontSize: 12))]);
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
