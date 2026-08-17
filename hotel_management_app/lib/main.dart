@@ -315,6 +315,7 @@ class AppController extends ChangeNotifier {
     guests = nextGuests;
     bookings = nextBookings;
     hotelName = (payload['hotelName'] as String?)?.trim().isNotEmpty == true ? (payload['hotelName'] as String).trim() : hotelName;
+    currentUser = null;
     _rebuildIndexes();
     await _save();
     notifyListeners();
