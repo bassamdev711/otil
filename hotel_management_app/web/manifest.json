@@ -1,11 +1,11 @@
 {
-    "name": "hotel_management_app",
-    "short_name": "hotel_management_app",
+    "name": "النخبة لإدارة الفندق",
+    "short_name": "النخبة",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F6F8FA",
+    "theme_color": "#0B2545",
+    "description": "نظام محلي منظم لإدارة الغرف والحجوزات والعملاء والعمليات اليومية للفندق.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
