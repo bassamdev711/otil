@@ -551,7 +551,21 @@ class StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   @override
-  Widget build(BuildContext context) => SizedBox(width: 230, child: Card(child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [CircleAvatar(backgroundColor: color.withOpacity(.12), child: Icon(icon, color: color)), const SizedBox(width: 14), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(color: Colors.grey[600])), const SizedBox(height: 6), Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))]))])));
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 230,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(children: [
+            CircleAvatar(backgroundColor: color.withOpacity(.12), child: Icon(icon, color: color)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(color: Colors.grey[600])), const SizedBox(height: 6), Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class OperationalPill extends StatelessWidget {
@@ -561,7 +575,18 @@ class OperationalPill extends StatelessWidget {
   final IconData icon;
   final Color color;
   @override
-  Widget build(BuildContext context) => Container(width: 170, padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: color.withOpacity(.08), borderRadius: BorderRadius.circular(12)), child: Row(children: [Icon(icon, color: color), const SizedBox(width: 10), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(color: Colors.grey[700])), Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color))])]);
+  Widget build(BuildContext context) {
+    return Container(
+      width: 170,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: color.withOpacity(.08), borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        Icon(icon, color: color),
+        const SizedBox(width: 10),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(color: Colors.grey[700])), Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color))]),
+      ]),
+    );
+  }
 }
 
 class Legend extends StatelessWidget {
@@ -636,7 +661,25 @@ class RoomCard extends ConsumerWidget {
     final c = ref.watch(appControllerProvider);
     final booking = c.activeBookingForRoom(room.id);
     final guest = booking == null ? null : c.guestById(booking.guestId);
-    return Card(child: InkWell(borderRadius: BorderRadius.circular(12), onTap: () => showRoomDetails(context, room), child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [CircleAvatar(backgroundColor: statusColor(room.status).withOpacity(.12), child: Icon(Icons.bed, color: statusColor(room.status))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('غرفة ${room.number}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text('${room.type} • طابق ${room.floor}', style: TextStyle(color: Colors.grey[600]))])), Icon(Icons.circle, size: 12, color: statusColor(room.status))]), const SizedBox(height: 14), if (guest != null) Row(children: [const Icon(Icons.person_outline, size: 18), const SizedBox(width: 8), Expanded(child: Text(guest.name, overflow: TextOverflow.ellipsis)), Text(dateLabel(booking!.checkOut), style: TextStyle(color: Colors.grey[600], fontSize: 12))]) else Row(children: [Icon(room.status == 'available' ? Icons.check_circle_outline : Icons.info_outline, size: 18, color: statusColor(room.status)), const SizedBox(width: 8), Text(room.status == 'available' ? 'جاهزة للحجز' : statusLabel(room.status))]), const Spacer(), Row(children: [Chip(label: Text(statusLabel(room.status)), side: BorderSide.none, backgroundColor: statusColor(room.status).withOpacity(.12)), const Spacer(), Text('${_moneyFormat.format(room.price)} ر.س', style: const TextStyle(fontWeight: FontWeight.bold)), PopupMenuButton<String>(onSelected: (value) => ref.read(appControllerProvider).updateRoomStatus(room, value), itemBuilder: (_) => ['available', 'occupied', 'maintenance', 'cleaning'].map((value) => PopupMenuItem<String>(value: value, child: Text(statusLabel(value)))).toList())])])));
+    final guestSummary = guest == null
+        ? Row(children: [Icon(room.status == 'available' ? Icons.check_circle_outline : Icons.info_outline, size: 18, color: statusColor(room.status)), const SizedBox(width: 8), Text(room.status == 'available' ? 'جاهزة للحجز' : statusLabel(room.status))])
+        : Row(children: [const Icon(Icons.person_outline, size: 18), const SizedBox(width: 8), Expanded(child: Text(guest.name, overflow: TextOverflow.ellipsis)), Text(dateLabel(booking!.checkOut), style: TextStyle(color: Colors.grey[600], fontSize: 12))]);
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => showRoomDetails(context, room),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [CircleAvatar(backgroundColor: statusColor(room.status).withOpacity(.12), child: Icon(Icons.bed, color: statusColor(room.status))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('غرفة ${room.number}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text('${room.type} • طابق ${room.floor}', style: TextStyle(color: Colors.grey[600]))])), Icon(Icons.circle, size: 12, color: statusColor(room.status))]),
+            const SizedBox(height: 14),
+            guestSummary,
+            const Spacer(),
+            Row(children: [Chip(label: Text(statusLabel(room.status)), side: BorderSide.none, backgroundColor: statusColor(room.status).withOpacity(.12)), const Spacer(), Text('${_moneyFormat.format(room.price)} ر.س', style: const TextStyle(fontWeight: FontWeight.bold)), PopupMenuButton<String>(onSelected: (value) => ref.read(appControllerProvider).updateRoomStatus(room, value), itemBuilder: (_) => ['available', 'occupied', 'maintenance', 'cleaning'].map((value) => PopupMenuItem<String>(value: value, child: Text(statusLabel(value)))).toList())]),
+          ]),
+        ),
+      ),
+    );
   }
 }
 
@@ -645,7 +688,20 @@ class BookingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = ref.watch(appControllerProvider);
-    return ListView(padding: const EdgeInsets.all(24), children: [Row(children: [Text('${c.bookings.length} حجز', style: Theme.of(context).textTheme.titleMedium), const Spacer(), FilledButton.icon(onPressed: () => showAddBookingDialog(context), icon: const Icon(Icons.add), label: const Text('حجز جديد'))]), const SizedBox(height: 16), if (c.bookings.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('لا توجد حجوزات بعد')))) else ...c.bookings.map((booking) { final guest = c.guestById(booking.guestId); final room = c.roomById(booking.roomId); return Card(child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), leading: CircleAvatar(child: Text(room?.number ?? '?')), title: Text('${booking.number} — ${guest?.name ?? 'ضيف غير معروف'}', style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('الغرفة ${room?.number ?? '-'} • ${dateLabel(booking.checkIn)} → ${dateLabel(booking.checkOut)} • ${_moneyFormat.format(booking.total)} ر.س'), trailing: PopupMenuButton<String>(onSelected: (value) { if (value == 'invoice') { printInvoice(context, booking); } else { ref.read(appControllerProvider).changeBookingStatus(booking, value); } }, itemBuilder: (_) => const [PopupMenuItem(value: 'checkedIn', child: Text('تأكيد Check-in')), PopupMenuItem(value: 'checkedOut', child: Text('تأكيد Check-out')), PopupMenuItem(value: 'cancelled', child: Text('إلغاء الحجز')), PopupMenuItem(value: 'invoice', child: Text('طباعة الفاتورة'))]))); })]);
+    final children = <Widget>[
+      Row(children: [Text('${c.bookings.length} حجز', style: Theme.of(context).textTheme.titleMedium), const Spacer(), FilledButton.icon(onPressed: () => showAddBookingDialog(context), icon: const Icon(Icons.add), label: const Text('حجز جديد'))]),
+      const SizedBox(height: 16),
+    ];
+    if (c.bookings.isEmpty) {
+      children.add(const Card(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('لا توجد حجوزات بعد')))));
+    } else {
+      children.addAll(c.bookings.map((booking) {
+        final guest = c.guestById(booking.guestId);
+        final room = c.roomById(booking.roomId);
+        return Card(child: ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), leading: CircleAvatar(child: Text(room?.number ?? '?')), title: Text('${booking.number} — ${guest?.name ?? 'ضيف غير معروف'}', style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('الغرفة ${room?.number ?? '-'} • ${dateLabel(booking.checkIn)} → ${dateLabel(booking.checkOut)} • ${_moneyFormat.format(booking.total)} ر.س'), trailing: PopupMenuButton<String>(onSelected: (value) { if (value == 'invoice') { printInvoice(context, booking); } else { ref.read(appControllerProvider).changeBookingStatus(booking, value); } }, itemBuilder: (_) => const [PopupMenuItem<String>(value: 'checkedIn', child: Text('تأكيد Check-in')), PopupMenuItem<String>(value: 'checkedOut', child: Text('تأكيد Check-out')), PopupMenuItem<String>(value: 'cancelled', child: Text('إلغاء الحجز')), PopupMenuItem<String>(value: 'invoice', child: Text('طباعة الفاتورة'))])));
+      }));
+    }
+    return ListView(padding: const EdgeInsets.all(24), children: children);
   }
 }
 
@@ -664,7 +720,13 @@ class _GuestsPageState extends ConsumerState<GuestsPage> {
   Widget build(BuildContext context) {
     final c = ref.watch(appControllerProvider);
     final guests = c.queryGuests(search);
-    return ListView(padding: const EdgeInsets.all(24), children: [Text('العملاء', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 16), TextField(onChanged: (value) { _searchDebounce?.cancel(); _searchDebounce = Timer(const Duration(milliseconds: 180), () { if (mounted) setState(() => search = value); }); }, decoration: const InputDecoration(labelText: 'البحث بالاسم أو الهاتف أو رقم الهوية', prefixIcon: Icon(Icons.search), border: OutlineInputBorder())), const SizedBox(height: 16), Card(child: ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: guests.length, separatorBuilder: (_, __) => const Divider(height: 1), itemBuilder: (_, index) { final guest = guests[index]; return ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), leading: CircleAvatar(child: Text(guest.name.isEmpty ? '?' : guest.name[0])), title: Text(guest.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${guest.phone} • ${guest.nationality} • ${guest.nationalId}'), trailing: Text('${c.stayCountForGuest(guest.id)} إقامة'); })), if (guests.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Center(child: Text('لا يوجد عملاء مطابقون')))]);
+    return ListView(padding: const EdgeInsets.all(24), children: [
+      Text('العملاء', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 16),
+      TextField(onChanged: (value) { _searchDebounce?.cancel(); _searchDebounce = Timer(const Duration(milliseconds: 180), () { if (mounted) setState(() => search = value); }); }, decoration: const InputDecoration(labelText: 'البحث بالاسم أو الهاتف أو رقم الهوية', prefixIcon: Icon(Icons.search), border: OutlineInputBorder())),
+      const SizedBox(height: 16),
+      if (guests.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(32), child: Center(child: Text('لا يوجد عملاء مطابقون')))) else Card(child: ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: guests.length, separatorBuilder: (_, __) => const Divider(height: 1), itemBuilder: (_, index) { final guest = guests[index]; return ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), leading: CircleAvatar(child: Text(guest.name.isEmpty ? '?' : guest.name[0])), title: Text(guest.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${guest.phone} • ${guest.nationality} • ${guest.nationalId}'), trailing: Text('${c.stayCountForGuest(guest.id)} إقامة')); })),
+    ]);
   }
 }
 
@@ -675,7 +737,13 @@ class ReportsPage extends ConsumerWidget {
     final c = ref.watch(appControllerProvider);
     final checkedIn = c.bookings.where((booking) => booking.status == 'checkedIn').length;
     final pending = c.bookings.where((booking) => booking.status == 'pending').length;
-    return ListView(padding: const EdgeInsets.all(24), children: [Text('ملخص الأداء', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), Wrap(spacing: 16, runSpacing: 16, children: [StatCard(label: 'إيرادات الحجوزات', value: '${_moneyFormat.format(c.revenue)} ر.س', icon: Icons.payments, color: Colors.indigo), StatCard(label: 'إقامات نشطة', value: '$checkedIn', icon: Icons.nights_stay, color: Colors.teal), StatCard(label: 'حجوزات معلقة', value: '$pending', icon: Icons.pending_actions, color: Colors.orange)]), const SizedBox(height: 24), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('تقرير الوردية', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 16), const ListTile(leading: Icon(Icons.nightlight_round), title: Text('الوردية الليلية'), subtitle: Text('تقرير الوصول والمغادرة والتسويات اليومية')), const Divider(), const ListTile(leading: Icon(Icons.wb_sunny_outlined), title: Text('الوردية النهارية'), subtitle: Text('حالة الغرف والحجوزات الجديدة'))])))]);
+    return ListView(padding: const EdgeInsets.all(24), children: [
+      Text('ملخص الأداء', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 18),
+      Wrap(spacing: 16, runSpacing: 16, children: [StatCard(label: 'إيرادات الحجوزات', value: '${_moneyFormat.format(c.revenue)} ر.س', icon: Icons.payments, color: Colors.indigo), StatCard(label: 'إقامات نشطة', value: '$checkedIn', icon: Icons.nights_stay, color: Colors.teal), StatCard(label: 'حجوزات معلقة', value: '$pending', icon: Icons.pending_actions, color: Colors.orange)]),
+      const SizedBox(height: 24),
+      Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('تقرير الوردية', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 16), const ListTile(leading: Icon(Icons.nightlight_round), title: Text('الوردية الليلية'), subtitle: Text('تقرير الوصول والمغادرة والتسويات اليومية')), const Divider(), const ListTile(leading: Icon(Icons.wb_sunny_outlined), title: Text('الوردية النهارية'), subtitle: Text('حالة الغرف والحجوزات الجديدة'))]))),
+    ]);
   }
 }
 
@@ -713,7 +781,8 @@ Future<void> showRoomDetails(BuildContext context, RoomRecord room) async {
   final c = ProviderScope.containerOf(context).read(appControllerProvider);
   final booking = c.activeBookingForRoom(room.id);
   final guest = booking == null ? null : c.guestById(booking.guestId);
-  await showDialog<void>(context: context, builder: (_) => AlertDialog(title: Row(children: [CircleAvatar(backgroundColor: statusColor(room.status).withOpacity(.12), child: Icon(Icons.meeting_room, color: statusColor(room.status))), const SizedBox(width: 12), Text('غرفة ${room.number}')]), content: SizedBox(width: 430, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${room.type} • الطابق ${room.floor}', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 16), DetailLine(icon: Icons.circle, label: 'الحالة', value: statusLabel(room.status), color: statusColor(room.status)), DetailLine(icon: Icons.payments_outlined, label: 'السعر', value: '${_moneyFormat.format(room.price)} ر.س / ليلة'), if (guest != null) ...[const Divider(height: 24), Text('الإقامة الحالية', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)), DetailLine(icon: Icons.person_outline, label: 'الضيف', value: guest.name), DetailLine(icon: Icons.calendar_today_outlined, label: 'الفترة', value: '${dateLabel(booking!.checkIn)} — ${dateLabel(booking!.checkOut)}'), DetailLine(icon: Icons.receipt_long_outlined, label: 'رقم الحجز', value: booking!.number)] else ...[const Divider(height: 24), Row(children: [Icon(room.status == 'available' ? Icons.check_circle : Icons.info_outline, color: statusColor(room.status)), const SizedBox(width: 8), Text(room.status == 'available' ? 'الغرفة جاهزة لاستقبال حجز جديد' : 'لا توجد إقامة نشطة حالياً')])]])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')), PopupMenuButton<String>(onSelected: (value) { c.updateRoomStatus(room, value); Navigator.pop(context); }, itemBuilder: (_) => ['available', 'occupied', 'maintenance', 'cleaning'].map((value) => PopupMenuItem<String>(value: value, child: Text(statusLabel(value)))).toList(), child: const FilledButton(onPressed: null, child: Text('تغيير الحالة')))]));
+  final stayContent = guest == null ? Row(children: [Icon(room.status == 'available' ? Icons.check_circle : Icons.info_outline, color: statusColor(room.status)), const SizedBox(width: 8), Text(room.status == 'available' ? 'الغرفة جاهزة لاستقبال حجز جديد' : 'لا توجد إقامة نشطة حالياً')]) : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Divider(height: 24), Text('الإقامة الحالية', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)), DetailLine(icon: Icons.person_outline, label: 'الضيف', value: guest.name), DetailLine(icon: Icons.calendar_today_outlined, label: 'الفترة', value: '${dateLabel(booking!.checkIn)} — ${dateLabel(booking!.checkOut)}'), DetailLine(icon: Icons.receipt_long_outlined, label: 'رقم الحجز', value: booking.number)]);
+  await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(title: Row(children: [CircleAvatar(backgroundColor: statusColor(room.status).withOpacity(.12), child: Icon(Icons.meeting_room, color: statusColor(room.status))), const SizedBox(width: 12), Text('غرفة ${room.number}')]), content: SizedBox(width: 430, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${room.type} • الطابق ${room.floor}', style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 16), DetailLine(icon: Icons.circle, label: 'الحالة', value: statusLabel(room.status), color: statusColor(room.status)), DetailLine(icon: Icons.payments_outlined, label: 'السعر', value: '${_moneyFormat.format(room.price)} ر.س / ليلة'), stayContent])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إغلاق')), PopupMenuButton<String>(onSelected: (value) { c.updateRoomStatus(room, value); Navigator.pop(dialogContext); }, itemBuilder: (_) => ['available', 'occupied', 'maintenance', 'cleaning'].map((value) => PopupMenuItem<String>(value: value, child: Text(statusLabel(value)))).toList(), child: const FilledButton(onPressed: null, child: Text('تغيير الحالة')))]));
 }
 
 class DetailLine extends StatelessWidget {
