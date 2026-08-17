@@ -1,30 +1,23 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hotel_management_app/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('password hashing is deterministic', () {
+    expect(hashPassword('admin123'), hashPassword('admin123'));
+    expect(hashPassword('admin123'), isNot(hashPassword('wrong')));
+  });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('status labels are localized', () {
+    expect(statusLabel('available'), 'شاغرة');
+    expect(statusLabel('occupied'), 'مشغولة');
+    expect(statusLabel('maintenance'), 'صيانة');
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  test('room and guest records serialize correctly', () {
+    final room = RoomRecord(id: 'r1', number: '101', type: 'مفردة', floor: 1, price: 180, status: 'available');
+    final guest = GuestRecord(id: 'g1', name: 'أحمد', phone: '0500', nationalId: '1', nationality: 'سعودي');
+    expect(RoomRecord.fromMap(room.toMap()).number, '101');
+    expect(GuestRecord.fromMap(guest.toMap()).name, 'أحمد');
   });
 }

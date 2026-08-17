@@ -1,5 +1,5 @@
 name: hotel_management_app
-description: "تطبيق إدارة الفنادق"
+description: "تطبيق إدارة الفنادق المحلي — يعمل دون اتصال"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -10,11 +10,24 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+  crypto: ^3.0.3
+  intl: ^0.19.0
+  uuid: ^4.4.2
+  # Firebase dependencies are intentionally reserved for a future feature flag.
+  # firebase_core: ^3.4.0
+  # cloud_firestore: ^5.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  # hive_generator and build_runner can be enabled when generated adapters are introduced.
+  # hive_generator: ^2.0.1
+  # build_runner: ^2.4.12
 
 flutter:
   uses-material-design: true

@@ -1,122 +1,249 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-void main() {
-  runApp(const MyApp());
+import 'package:crypto/crypto.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
+
+const _uuid = Uuid();
+final _dateFormat = DateFormat('dd/MM/yyyy');
+final _moneyFormat = NumberFormat('#,##0.00', 'en_US');
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await Hive.openBox('hotel_data');
+  runApp(const ProviderScope(child: HotelApp()));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+final appControllerProvider = ChangeNotifierProvider<AppController>((ref) {
+  return AppController()..initialize();
+});
 
-  // This widget is the root of your application.
+String hashPassword(String value) => sha256.convert(utf8.encode(value)).toString();
+String dateLabel(DateTime value) => _dateFormat.format(value);
+
+class UserRecord {
+  UserRecord({required this.id, required this.name, required this.username, required this.passwordHash, required this.role, this.isActive = true});
+  final String id;
+  final String name;
+  final String username;
+  final String passwordHash;
+  final String role;
+  final bool isActive;
+
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'username': username, 'passwordHash': passwordHash, 'role': role, 'isActive': isActive};
+  factory UserRecord.fromMap(Map map) => UserRecord(id: map['id'], name: map['name'], username: map['username'], passwordHash: map['passwordHash'], role: map['role'], isActive: map['isActive'] ?? true);
+}
+
+class RoomRecord {
+  RoomRecord({required this.id, required this.number, required this.type, required this.floor, required this.price, required this.status, this.notes = ''});
+  final String id;
+  final String number;
+  final String type;
+  final int floor;
+  final double price;
+  String status;
+  final String notes;
+
+  Map<String, dynamic> toMap() => {'id': id, 'number': number, 'type': type, 'floor': floor, 'price': price, 'status': status, 'notes': notes};
+  factory RoomRecord.fromMap(Map map) => RoomRecord(id: map['id'], number: map['number'], type: map['type'], floor: map['floor'], price: (map['price'] as num).toDouble(), status: map['status'], notes: map['notes'] ?? '');
+}
+
+class GuestRecord {
+  GuestRecord({required this.id, required this.name, required this.phone, required this.nationalId, required this.nationality, this.email = ''});
+  final String id;
+  final String name;
+  final String phone;
+  final String nationalId;
+  final String nationality;
+  final String email;
+
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'phone': phone, 'nationalId': nationalId, 'nationality': nationality, 'email': email};
+  factory GuestRecord.fromMap(Map map) => GuestRecord(id: map['id'], name: map['name'], phone: map['phone'], nationalId: map['nationalId'], nationality: map['nationality'], email: map['email'] ?? '');
+}
+
+class BookingRecord {
+  BookingRecord({required this.id, required this.number, required this.guestId, required this.roomId, required this.checkIn, required this.checkOut, required this.status, required this.total, this.notes = ''});
+  final String id;
+  final String number;
+  final String guestId;
+  final String roomId;
+  final DateTime checkIn;
+  final DateTime checkOut;
+  String status;
+  final double total;
+  final String notes;
+
+  Map<String, dynamic> toMap() => {'id': id, 'number': number, 'guestId': guestId, 'roomId': roomId, 'checkIn': checkIn.toIso8601String(), 'checkOut': checkOut.toIso8601String(), 'status': status, 'total': total, 'notes': notes};
+  factory BookingRecord.fromMap(Map map) => BookingRecord(id: map['id'], number: map['number'], guestId: map['guestId'], roomId: map['roomId'], checkIn: DateTime.parse(map['checkIn']), checkOut: DateTime.parse(map['checkOut']), status: map['status'], total: (map['total'] as num).toDouble(), notes: map['notes'] ?? '');
+}
+
+class AppController extends ChangeNotifier {
+  final Box _box = Hive.box('hotel_data');
+  bool initialized = false;
+  UserRecord? currentUser;
+  List<UserRecord> users = [];
+  List<RoomRecord> rooms = [];
+  List<GuestRecord> guests = [];
+  List<BookingRecord> bookings = [];
+  String hotelName = 'فندق النخبة';
+
+  Future<void> initialize() async {
+    final raw = _box.get('seeded');
+    if (raw != true) {
+      users = [UserRecord(id: _uuid.v4(), name: 'مدير النظام', username: 'admin', passwordHash: hashPassword('admin123'), role: 'admin')];
+      rooms = [
+        RoomRecord(id: _uuid.v4(), number: '101', type: 'مفردة', floor: 1, price: 180, status: 'available'),
+        RoomRecord(id: _uuid.v4(), number: '102', type: 'مزدوجة', floor: 1, price: 260, status: 'occupied'),
+        RoomRecord(id: _uuid.v4(), number: '201', type: 'جناح', floor: 2, price: 520, status: 'available'),
+        RoomRecord(id: _uuid.v4(), number: '202', type: 'VIP', floor: 2, price: 780, status: 'cleaning'),
+        RoomRecord(id: _uuid.v4(), number: '301', type: 'مزدوجة', floor: 3, price: 310, status: 'maintenance'),
+        RoomRecord(id: _uuid.v4(), number: '302', type: 'مفردة', floor: 3, price: 180, status: 'available'),
+      ];
+      guests = [
+        GuestRecord(id: _uuid.v4(), name: 'أحمد محمد', phone: '0501234567', nationalId: '1020304050', nationality: 'سعودي'),
+        GuestRecord(id: _uuid.v4(), name: 'سارة علي', phone: '0507654321', nationalId: '2030405060', nationality: 'سعودية'),
+      ];
+      bookings = [BookingRecord(id: _uuid.v4(), number: 'BK-1001', guestId: guests[0].id, roomId: rooms[1].id, checkIn: DateTime.now().subtract(const Duration(days: 1)), checkOut: DateTime.now().add(const Duration(days: 2)), status: 'checkedIn', total: 780)];
+      await _save();
+      await _box.put('seeded', true);
+    } else {
+      users = _readList('users', UserRecord.fromMap);
+      rooms = _readList('rooms', RoomRecord.fromMap);
+      guests = _readList('guests', GuestRecord.fromMap);
+      bookings = _readList('bookings', BookingRecord.fromMap);
+      hotelName = _box.get('hotelName', defaultValue: hotelName);
+    }
+    initialized = true;
+    notifyListeners();
+  }
+
+  List<T> _readList<T>(String key, T Function(Map) parser) => ((_box.get(key) as List?) ?? []).map((e) => parser(Map<String, dynamic>.from(e))).toList();
+
+  Future<void> _save() async {
+    await _box.putAll({'users': users.map((e) => e.toMap()).toList(), 'rooms': rooms.map((e) => e.toMap()).toList(), 'guests': guests.map((e) => e.toMap()).toList(), 'bookings': bookings.map((e) => e.toMap()).toList(), 'hotelName': hotelName});
+  }
+
+  bool login(String username, String password) {
+    final match = users.where((u) => u.username == username && u.passwordHash == hashPassword(password) && u.isActive).toList();
+    if (match.isEmpty) return false;
+    currentUser = match.first;
+    notifyListeners();
+    return true;
+  }
+
+  void logout() { currentUser = null; notifyListeners(); }
+  GuestRecord? guestById(String id) {
+    for (final guest in guests) {
+      if (guest.id == id) return guest;
+    }
+    return null;
+  }
+  RoomRecord? roomById(String id) {
+    for (final room in rooms) {
+      if (room.id == id) return room;
+    }
+    return null;
+  }
+  int get occupiedRooms => rooms.where((e) => e.status == 'occupied').length;
+  int get availableRooms => rooms.where((e) => e.status == 'available').length;
+  int get maintenanceRooms => rooms.where((e) => e.status == 'maintenance').length;
+  double get occupancy => rooms.isEmpty ? 0 : occupiedRooms / rooms.length;
+  double get revenue => bookings.where((e) => e.status != 'cancelled').fold(0, (sum, e) => sum + e.total);
+
+  Future<void> addRoom(String number, String type, int floor, double price) async { rooms.add(RoomRecord(id: _uuid.v4(), number: number, type: type, floor: floor, price: price, status: 'available')); await _save(); notifyListeners(); }
+  Future<void> updateRoomStatus(RoomRecord room, String status) async { room.status = status; await _save(); notifyListeners(); }
+  Future<void> addGuest(String name, String phone, String nationalId, String nationality, String email) async { guests.add(GuestRecord(id: _uuid.v4(), name: name, phone: phone, nationalId: nationalId, nationality: nationality, email: email)); await _save(); notifyListeners(); }
+  Future<void> addBooking(String guestId, String roomId, DateTime start, DateTime end, String notes) async {
+    final room = roomById(roomId)!;
+    final nights = end.difference(start).inDays.clamp(1, 365);
+    bookings.insert(0, BookingRecord(id: _uuid.v4(), number: 'BK-${1000 + bookings.length + 1}', guestId: guestId, roomId: roomId, checkIn: start, checkOut: end, status: 'pending', total: room.price * nights, notes: notes));
+    await _save();
+    notifyListeners();
+  }
+  Future<void> changeBookingStatus(BookingRecord booking, String status) async { booking.status = status; final room = roomById(booking.roomId); if (room != null && status == 'checkedIn') room.status = 'occupied'; if (room != null && status == 'checkedOut') room.status = 'cleaning'; await _save(); notifyListeners(); }
+  Future<void> addUser(String name, String username, String password, String role) async { users.add(UserRecord(id: _uuid.v4(), name: name, username: username, passwordHash: hashPassword(password), role: role)); await _save(); notifyListeners(); }
+  Future<void> updateHotelName(String value) async { hotelName = value.trim().isEmpty ? 'فندق النخبة' : value.trim(); await _save(); notifyListeners(); }
+}
+
+class HotelApp extends ConsumerWidget {
+  const HotelApp({super.key});
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.watch(appControllerProvider);
+    if (!controller.initialized) return const MaterialApp(home: Scaffold(body: Center(child: CircularProgressIndicator())));
+    final router = GoRouter(initialLocation: controller.currentUser == null ? '/login' : '/home', routes: [GoRoute(path: '/login', builder: (_, __) => const LoginScreen()), GoRoute(path: '/home', builder: (_, __) => const MainShell())]);
+    return MaterialApp.router(title: controller.hotelName, debugShowCheckedModeBanner: false, routerConfig: router, theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0b7285), brightness: Brightness.light), scaffoldBackgroundColor: const Color(0xfff6f8fa), fontFamily: 'Arial'));
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class LoginScreen extends ConsumerStatefulWidget { const LoginScreen({super.key}); @override ConsumerState<LoginScreen> createState() => _LoginScreenState(); }
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _user = TextEditingController(text: 'admin');
+  final _pass = TextEditingController(text: 'admin123');
+  String? error;
+  bool busy = false;
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl, child: Scaffold(body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 430), child: Card(margin: const EdgeInsets.all(24), elevation: 2, child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [CircleAvatar(radius: 34, backgroundColor: Theme.of(context).colorScheme.primaryContainer, child: Icon(Icons.hotel, size: 34, color: Theme.of(context).colorScheme.primary)), const SizedBox(height: 18), Text('مرحباً بك في ${ref.watch(appControllerProvider).hotelName}', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold), textAlign: TextAlign.center), const SizedBox(height: 8), Text('نظام إدارة الفندق المحلي', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600])), const SizedBox(height: 28), TextField(controller: _user, decoration: const InputDecoration(labelText: 'اسم المستخدم', prefixIcon: Icon(Icons.person_outline), border: OutlineInputBorder())), const SizedBox(height: 14), TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', prefixIcon: Icon(Icons.lock_outline), border: OutlineInputBorder())), if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: const TextStyle(color: Colors.red))), const SizedBox(height: 22), SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: busy ? null : () { setState(() => busy = true); final ok = ref.read(appControllerProvider).login(_user.text.trim(), _pass.text); if (ok) { context.go('/home'); } else { setState(() { error = 'بيانات الدخول غير صحيحة'; busy = false; }); } }, icon: const Icon(Icons.login), label: Padding(padding: const EdgeInsets.all(12), child: Text(busy ? 'جارٍ الدخول...' : 'تسجيل الدخول')))), const SizedBox(height: 16), Text('الحساب الافتراضي: admin / admin123', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[600]))]))))));
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+class MainShell extends ConsumerStatefulWidget { const MainShell({super.key}); @override ConsumerState<MainShell> createState() => _MainShellState(); }
+class _MainShellState extends ConsumerState<MainShell> {
+  int index = 0;
+  final query = TextEditingController();
+  final titles = ['لوحة التحكم', 'الغرف', 'الحجوزات', 'العملاء', 'التقارير', 'الإعدادات'];
+  @override
+  Widget build(BuildContext context) {
+    final controller = ref.watch(appControllerProvider);
+    final isAdmin = controller.currentUser?.role == 'admin';
+    final pages = [const DashboardPage(), const RoomsPage(), const BookingsPage(), const GuestsPage(), const ReportsPage(), SettingsPage(isAdmin: isAdmin)];
+    return Directionality(textDirection: TextDirection.rtl, child: LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 900;
+      final nav = NavigationRail(selectedIndex: index, onDestinationSelected: (i) => setState(() => index = i), labelType: NavigationRailLabelType.all, backgroundColor: Colors.white, destinations: const [NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: Text('الرئيسية')), NavigationRailDestination(icon: Icon(Icons.meeting_room_outlined), selectedIcon: Icon(Icons.meeting_room), label: Text('الغرف')), NavigationRailDestination(icon: Icon(Icons.book_online_outlined), selectedIcon: Icon(Icons.book_online), label: Text('الحجوزات')), NavigationRailDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: Text('العملاء')), NavigationRailDestination(icon: Icon(Icons.analytics_outlined), selectedIcon: Icon(Icons.analytics), label: Text('التقارير')), NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: Text('الإعدادات'))]);
+      return Scaffold(appBar: AppBar(title: Text(titles[index], style: const TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.white, actions: [if (wide) SizedBox(width: 260, child: TextField(controller: query, onChanged: (v) => setState(() {}), decoration: const InputDecoration(hintText: 'بحث سريع...', prefixIcon: Icon(Icons.search), border: InputBorder.none))), const SizedBox(width: 12), PopupMenuButton<String>(tooltip: 'الحساب', onSelected: (value) { if (value == 'logout') { controller.logout(); context.go('/login'); } }, itemBuilder: (_) => [PopupMenuItem(value: 'profile', child: Text('${controller.currentUser?.name ?? ''} (${roleLabel(controller.currentUser?.role)})')), const PopupMenuDivider(), const PopupMenuItem(value: 'logout', child: Text('تسجيل الخروج'))], child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: CircleAvatar(child: Text((controller.currentUser?.name ?? 'م')[0]))))]), body: Row(children: [if (wide) nav, Expanded(child: pages[index])]), bottomNavigationBar: wide ? null : NavigationBar(selectedIndex: index, onDestinationSelected: (i) => setState(() => index = i), destinations: const [NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'الرئيسية'), NavigationDestination(icon: Icon(Icons.meeting_room_outlined), selectedIcon: Icon(Icons.meeting_room), label: 'الغرف'), NavigationDestination(icon: Icon(Icons.book_online_outlined), selectedIcon: Icon(Icons.book_online), label: 'الحجوزات'), NavigationDestination(icon: Icon(Icons.people_outline), selectedIcon: Icon(Icons.people), label: 'العملاء'), NavigationDestination(icon: Icon(Icons.more_horiz), label: 'المزيد')]), floatingActionButton: index == 1 ? FloatingActionButton.extended(onPressed: () => showAddRoomDialog(context), icon: const Icon(Icons.add), label: const Text('غرفة جديدة')) : index == 3 ? FloatingActionButton.extended(onPressed: () => showAddGuestDialog(context), icon: const Icon(Icons.person_add), label: const Text('عميل جديد')) : null);
     });
   }
+}
 
+String roleLabel(String? role) => {'admin': 'مدير النظام', 'receptionist': 'موظف استقبال', 'nightShift': 'وردية ليلية', 'dayShift': 'وردية نهارية'}[role] ?? 'مستخدم';
+String statusLabel(String status) => {'available': 'شاغرة', 'occupied': 'مشغولة', 'maintenance': 'صيانة', 'cleaning': 'تنظيف', 'pending': 'قيد الانتظار', 'checkedIn': 'تم الدخول', 'checkedOut': 'تم الخروج', 'cancelled': 'ملغى'}[status] ?? status;
+Color statusColor(String status) => {'available': Colors.green, 'occupied': Colors.red, 'maintenance': Colors.amber.shade800, 'cleaning': Colors.blue, 'pending': Colors.orange, 'checkedIn': Colors.green, 'checkedOut': Colors.blueGrey, 'cancelled': Colors.red}[status] ?? Colors.grey;
+
+class DashboardPage extends ConsumerWidget {
+  const DashboardPage({super.key});
   @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = ref.watch(appControllerProvider);
+    return ListView(padding: const EdgeInsets.all(24), children: [Wrap(spacing: 16, runSpacing: 16, children: [StatCard(label: 'إجمالي الغرف', value: '${c.rooms.length}', icon: Icons.meeting_room, color: Colors.teal), StatCard(label: 'الغرف المشغولة', value: '${c.occupiedRooms}', icon: Icons.hotel, color: Colors.red), StatCard(label: 'الغرف الشاغرة', value: '${c.availableRooms}', icon: Icons.check_circle, color: Colors.green), StatCard(label: 'الإيرادات', value: '${_moneyFormat.format(c.revenue)} ر.س', icon: Icons.payments, color: Colors.indigo)]), const SizedBox(height: 24), Wrap(spacing: 20, runSpacing: 20, children: [SizedBox(width: 360, child: Card(child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('مؤشر الإشغال', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), Row(children: [SizedBox(width: 120, height: 120, child: Stack(alignment: Alignment.center, children: [CircularProgressIndicator(value: c.occupancy, strokeWidth: 12, backgroundColor: Colors.grey.shade200, color: Colors.teal), Text('${(c.occupancy * 100).round()}%', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))])), const SizedBox(width: 20), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Legend(color: Colors.red, label: 'مشغولة: ${c.occupiedRooms}'), Legend(color: Colors.green, label: 'شاغرة: ${c.availableRooms}'), Legend(color: Colors.amber, label: 'صيانة: ${c.maintenanceRooms}')])])]))), SizedBox(width: 500, child: Card(child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('الحجوزات الأخيرة', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 10), ...c.bookings.take(4).map((b) => ListTile(contentPadding: EdgeInsets.zero, leading: CircleAvatar(backgroundColor: statusColor(b.status).withOpacity(.12), child: Icon(Icons.receipt_long, color: statusColor(b.status))), title: Text(b.number), subtitle: Text('${c.guestById(b.guestId)?.name ?? 'عميل'} • غرفة ${c.roomById(b.roomId)?.number ?? '-'}'), trailing: Chip(label: Text(statusLabel(b.status)), side: BorderSide.none, backgroundColor: statusColor(b.status).withOpacity(.12)))])]))))]), const SizedBox(height: 24), Card(child: Padding(padding: const EdgeInsets.all(22), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('حالة الغرف', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 16), Wrap(spacing: 12, runSpacing: 12, children: c.rooms.map((room) => RoomMiniCard(room: room)).toList())])))]);
   }
 }
+
+class StatCard extends StatelessWidget { const StatCard({super.key, required this.label, required this.value, required this.icon, required this.color}); final String label, value; final IconData icon; final Color color; @override Widget build(BuildContext context) => SizedBox(width: 230, child: Card(child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [CircleAvatar(backgroundColor: color.withOpacity(.12), child: Icon(icon, color: color)), const SizedBox(width: 14), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: TextStyle(color: Colors.grey[600])), const SizedBox(height: 6), Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))])]))); }
+class Legend extends StatelessWidget { const Legend({super.key, required this.color, required this.label}); final Color color; final String label; @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 8), Text(label)])); }
+class RoomMiniCard extends StatelessWidget { const RoomMiniCard({super.key, required this.room}); final RoomRecord room; @override Widget build(BuildContext context) => Container(width: 112, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: statusColor(room.status).withOpacity(.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: statusColor(room.status).withOpacity(.3))), child: Column(children: [Icon(Icons.bed, color: statusColor(room.status)), const SizedBox(height: 5), Text(room.number, style: const TextStyle(fontWeight: FontWeight.bold)), Text(statusLabel(room.status), style: TextStyle(fontSize: 12, color: statusColor(room.status)))])); }
+
+class RoomsPage extends ConsumerStatefulWidget { const RoomsPage({super.key}); @override ConsumerState<RoomsPage> createState() => _RoomsPageState(); }
+class _RoomsPageState extends ConsumerState<RoomsPage> { String filter = 'الكل'; @override Widget build(BuildContext context) { final c = ref.watch(appControllerProvider); final list = filter == 'الكل' ? c.rooms : c.rooms.where((r) => statusLabel(r.status) == filter).toList(); return ListView(padding: const EdgeInsets.all(24), children: [Row(children: [Text('${list.length} غرفة', style: Theme.of(context).textTheme.titleMedium), const Spacer(), DropdownButton<String>(value: filter, items: ['الكل', 'شاغرة', 'مشغولة', 'صيانة', 'تنظيف'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(), onChanged: (v) => setState(() => filter = v!))]), const SizedBox(height: 16), GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 260, mainAxisExtent: 190, crossAxisSpacing: 16, mainAxisSpacing: 16), itemCount: list.length, itemBuilder: (_, i) => RoomCard(room: list[i]))]); } }
+class RoomCard extends ConsumerWidget { const RoomCard({super.key, required this.room}); final RoomRecord room; @override Widget build(BuildContext context, WidgetRef ref) => Card(child: Padding(padding: const EdgeInsets.all(18), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text('غرفة ${room.number}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), const Spacer(), Icon(Icons.circle, size: 13, color: statusColor(room.status))]), const SizedBox(height: 8), Text('${room.type} • الطابق ${room.floor}'), const SizedBox(height: 4), Text('${_moneyFormat.format(room.price)} ر.س / ليلة', style: TextStyle(color: Colors.grey[700])), const Spacer(), Row(children: [Chip(label: Text(statusLabel(room.status)), side: BorderSide.none, backgroundColor: statusColor(room.status).withOpacity(.12)), const Spacer(), PopupMenuButton<String>(onSelected: (v) => ref.read(appControllerProvider).updateRoomStatus(room, v), itemBuilder: (_) => ['available', 'occupied', 'maintenance', 'cleaning'].map((v) => PopupMenuItem(value: v, child: Text(statusLabel(v)))).toList())])]))); }
+
+class BookingsPage extends ConsumerWidget { const BookingsPage({super.key}); @override Widget build(BuildContext context, WidgetRef ref) { final c = ref.watch(appControllerProvider); return ListView(padding: const EdgeInsets.all(24), children: [Row(children: [Text('${c.bookings.length} حجز', style: Theme.of(context).textTheme.titleMedium), const Spacer(), FilledButton.icon(onPressed: () => showAddBookingDialog(context), icon: const Icon(Icons.add), label: const Text('حجز جديد'))]), const SizedBox(height: 16), Card(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(columns: const [DataColumn(label: Text('رقم الحجز')), DataColumn(label: Text('العميل')), DataColumn(label: Text('الغرفة')), DataColumn(label: Text('الوصول')), DataColumn(label: Text('المغادرة')), DataColumn(label: Text('الإجمالي')), DataColumn(label: Text('الحالة')), DataColumn(label: Text('إجراء'))], rows: c.bookings.map((b) => DataRow(cells: [DataCell(Text(b.number)), DataCell(Text(c.guestById(b.guestId)?.name ?? '-')), DataCell(Text(c.roomById(b.roomId)?.number ?? '-')), DataCell(Text(dateLabel(b.checkIn))), DataCell(Text(dateLabel(b.checkOut))), DataCell(Text('${_moneyFormat.format(b.total)} ر.س')), DataCell(Chip(label: Text(statusLabel(b.status)), side: BorderSide.none, backgroundColor: statusColor(b.status).withOpacity(.12))), DataCell(PopupMenuButton<String>(onSelected: (v) { if (v == 'invoice') ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تجهيز الفاتورة للطباعة'))); else ref.read(appControllerProvider).changeBookingStatus(b, v); }, itemBuilder: (_) => [const PopupMenuItem(value: 'checkedIn', child: Text('تأكيد Check-in')), const PopupMenuItem(value: 'checkedOut', child: Text('تأكيد Check-out')), const PopupMenuItem(value: 'cancelled', child: Text('إلغاء الحجز')), const PopupMenuItem(value: 'invoice', child: Text('طباعة الفاتورة'))]))])).toList()))]; } }
+
+class GuestsPage extends ConsumerStatefulWidget { const GuestsPage({super.key}); @override ConsumerState<GuestsPage> createState() => _GuestsPageState(); }
+class _GuestsPageState extends ConsumerState<GuestsPage> { String search = ''; @override Widget build(BuildContext context) { final c = ref.watch(appControllerProvider); final list = c.guests.where((g) => '${g.name} ${g.phone} ${g.nationalId}'.contains(search)).toList(); return ListView(padding: const EdgeInsets.all(24), children: [TextField(onChanged: (v) => setState(() => search = v), decoration: const InputDecoration(labelText: 'البحث بالاسم أو الهاتف أو رقم الهوية', prefixIcon: Icon(Icons.search), border: OutlineInputBorder())), const SizedBox(height: 16), Card(child: ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: list.length, separatorBuilder: (_, __) => const Divider(height: 1), itemBuilder: (_, i) { final g = list[i]; final history = c.bookings.where((b) => b.guestId == g.id).length; return ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), leading: CircleAvatar(child: Text(g.name.isEmpty ? '?' : g.name[0])), title: Text(g.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${g.phone} • ${g.nationality} • ${g.nationalId}'), trailing: Text('$history إقامة'); }))]; } }
+
+class ReportsPage extends ConsumerWidget { const ReportsPage({super.key}); @override Widget build(BuildContext context, WidgetRef ref) { final c = ref.watch(appControllerProvider); final checkedIn = c.bookings.where((b) => b.status == 'checkedIn').length; final pending = c.bookings.where((b) => b.status == 'pending').length; return ListView(padding: const EdgeInsets.all(24), children: [Text('ملخص الأداء', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), Wrap(spacing: 16, runSpacing: 16, children: [StatCard(label: 'إيرادات الحجوزات', value: '${_moneyFormat.format(c.revenue)} ر.س', icon: Icons.payments, color: Colors.indigo), StatCard(label: 'إقامات نشطة', value: '$checkedIn', icon: Icons.nights_stay, color: Colors.teal), StatCard(label: 'حجوزات معلقة', value: '$pending', icon: Icons.pending_actions, color: Colors.orange)]), const SizedBox(height: 24), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('تقرير الوردية', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 16), const ListTile(leading: Icon(Icons.nightlight_round), title: Text('الوردية الليلية'), subtitle: Text('تقرير الوصول والمغادرة والتسويات اليومية'), trailing: Icon(Icons.chevron_left)), const Divider(), const ListTile(leading: Icon(Icons.wb_sunny_outlined), title: Text('الوردية النهارية'), subtitle: Text('حالة الغرف والحجوزات الجديدة'), trailing: Icon(Icons.chevron_left))])))]); } }
+
+class SettingsPage extends ConsumerStatefulWidget { const SettingsPage({super.key, required this.isAdmin}); final bool isAdmin; @override ConsumerState<SettingsPage> createState() => _SettingsPageState(); }
+class _SettingsPageState extends ConsumerState<SettingsPage> { final name = TextEditingController(); @override Widget build(BuildContext context) { final c = ref.watch(appControllerProvider); name.text = c.hotelName; if (!widget.isAdmin) return const Center(child: Text('هذه الصفحة متاحة لمدير النظام فقط')); return ListView(padding: const EdgeInsets.all(24), children: [Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('إعدادات الفندق', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الفندق', prefixIcon: Icon(Icons.hotel), border: OutlineInputBorder())), const SizedBox(height: 14), FilledButton(onPressed: () async { await c.updateHotelName(name.text); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ الإعدادات'))); }, child: const Text('حفظ'))])), const SizedBox(height: 18), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('المستخدمون والصلاحيات', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 12), ...c.users.map((u) => ListTile(leading: const Icon(Icons.account_circle_outlined), title: Text(u.name), subtitle: Text('${u.username} • ${roleLabel(u.role)}'), trailing: Switch(value: u.isActive, onChanged: null))), const SizedBox(height: 8), OutlinedButton.icon(onPressed: () => showAddUserDialog(context), icon: const Icon(Icons.person_add), label: const Text('إضافة مستخدم'))])), const SizedBox(height: 18), Card(child: const ListTile(leading: Icon(Icons.cloud_outlined), title: Text('Firebase'), subtitle: Text('جاهز للتفعيل مستقبلاً — التخزين المحلي يعمل حالياً عبر Hive/IndexedDB'), trailing: Chip(label: Text('معطل'))))]); } }
+
+Future<void> showAddRoomDialog(BuildContext context) async { final number = TextEditingController(), floor = TextEditingController(text: '1'), price = TextEditingController(text: '200'); String type = 'مفردة'; await showDialog(context: context, builder: (_) => StatefulBuilder(builder: (context, set) => AlertDialog(title: const Text('إضافة غرفة'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: number, decoration: const InputDecoration(labelText: 'رقم الغرفة')), TextField(controller: floor, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الطابق')), TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'السعر لليلة')), DropdownButtonFormField(value: type, decoration: const InputDecoration(labelText: 'النوع'), items: ['مفردة', 'مزدوجة', 'جناح', 'VIP'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => set(() => type = v!))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { if (number.text.isNotEmpty) { final c = ProviderScope.containerOf(context).read(appControllerProvider); c.addRoom(number.text, type, int.tryParse(floor.text) ?? 1, double.tryParse(price.text) ?? 0); Navigator.pop(context); } }, child: const Text('إضافة'))])); }
+
+Future<void> showAddGuestDialog(BuildContext context) async { final name = TextEditingController(), phone = TextEditingController(), id = TextEditingController(), nationality = TextEditingController(text: 'سعودي'), email = TextEditingController(); await showDialog(context: context, builder: (_) => AlertDialog(title: const Text('إضافة عميل'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم الكامل')), TextField(controller: phone, decoration: const InputDecoration(labelText: 'الهاتف')), TextField(controller: id, decoration: const InputDecoration(labelText: 'رقم الهوية')), TextField(controller: nationality, decoration: const InputDecoration(labelText: 'الجنسية')), TextField(controller: email, decoration: const InputDecoration(labelText: 'البريد الإلكتروني'))])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { if (name.text.isNotEmpty) { ProviderScope.containerOf(context).read(appControllerProvider).addGuest(name.text, phone.text, id.text, nationality.text, email.text); Navigator.pop(context); } }, child: const Text('حفظ'))])); }
+
+Future<void> showAddBookingDialog(BuildContext context) async { final c = ProviderScope.containerOf(context).read(appControllerProvider); if (c.guests.isEmpty || c.rooms.where((r) => r.status == 'available').isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف عميلاً وغرفة شاغرة أولاً'))); return; } String guest = c.guests.first.id, room = c.rooms.firstWhere((r) => r.status == 'available').id; DateTime start = DateTime.now(), end = DateTime.now().add(const Duration(days: 1)); final notes = TextEditingController(); await showDialog(context: context, builder: (_) => StatefulBuilder(builder: (context, set) => AlertDialog(title: const Text('إنشاء حجز جديد'), content: Column(mainAxisSize: MainAxisSize.min, children: [DropdownButtonFormField(value: guest, decoration: const InputDecoration(labelText: 'العميل'), items: c.guests.map((g) => DropdownMenuItem(value: g.id, child: Text(g.name))).toList(), onChanged: (v) => set(() => guest = v!)), DropdownButtonFormField(value: room, decoration: const InputDecoration(labelText: 'الغرفة'), items: c.rooms.where((r) => r.status == 'available').map((r) => DropdownMenuItem(value: r.id, child: Text('${r.number} — ${r.type}'))).toList(), onChanged: (v) => set(() => room = v!)), ListTile(title: Text('الوصول: ${dateLabel(start)}'), trailing: const Icon(Icons.calendar_today), onTap: () async { final d = await showDatePicker(context: context, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: start); if (d != null) set(() => start = d); }), ListTile(title: Text('المغادرة: ${dateLabel(end)}'), trailing: const Icon(Icons.calendar_today), onTap: () async { final d = await showDatePicker(context: context, firstDate: start.add(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: end); if (d != null) set(() => end = d); }), TextField(controller: notes, decoration: const InputDecoration(labelText: 'ملاحظات'))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { c.addBooking(guest, room, start, end, notes.text); Navigator.pop(context); }, child: const Text('إنشاء الحجز'))]))); }
+
+Future<void> showAddUserDialog(BuildContext context) async { final name = TextEditingController(), username = TextEditingController(), password = TextEditingController(); String role = 'receptionist'; await showDialog(context: context, builder: (_) => StatefulBuilder(builder: (context, set) => AlertDialog(title: const Text('إضافة مستخدم'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم')), TextField(controller: username, decoration: const InputDecoration(labelText: 'اسم المستخدم')), TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور')), DropdownButtonFormField(value: role, decoration: const InputDecoration(labelText: 'الدور'), items: const [DropdownMenuItem(value: 'receptionist', child: Text('موظف استقبال')), DropdownMenuItem(value: 'nightShift', child: Text('وردية ليلية')), DropdownMenuItem(value: 'dayShift', child: Text('وردية نهارية'))], onChanged: (v) => set(() => role = v!))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { if (name.text.isNotEmpty && username.text.isNotEmpty && password.text.isNotEmpty) { ProviderScope.containerOf(context).read(appControllerProvider).addUser(name.text, username.text, password.text, role); Navigator.pop(context); } }, child: const Text('إضافة'))])); }

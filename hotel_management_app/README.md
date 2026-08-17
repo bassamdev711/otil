@@ -1,16 +1,50 @@
-# hotel_management_app
+# Hotel Management App
 
-A new Flutter project.
+تطبيق Flutter Web لإدارة الفندق، مصمم للعمل محلياً أولاً دون اتصال بالإنترنت. يدعم التطبيق تسجيل الدخول المحلي، إدارة الغرف والحجوزات والعملاء، التقارير الأساسية، وإعدادات المستخدمين والفندق.
 
-## Getting Started
+## المزايا المنفذة
 
-This project is a starting point for a Flutter application.
+| المجال | الوظائف |
+|---|---|
+| المصادقة | تسجيل دخول محلي، كلمة المرور الافتراضية `admin / admin123`، صلاحية مدير النظام |
+| التخزين | Hive مع `hive_flutter`، ويستخدم IndexedDB عند التشغيل على الويب |
+| لوحة التحكم | إحصائيات الغرف، نسبة الإشغال، الإيرادات، وآخر الحجوزات |
+| الغرف | عرض شبكي، حالات شاغرة/مشغولة/صيانة/تنظيف، فلترة، إضافة غرفة وتغيير الحالة |
+| الحجوزات | إنشاء حجز، اختيار العميل والغرفة، حساب السعر حسب عدد الليالي، Check-in وCheck-out وإلغاء وطباعة الفاتورة |
+| العملاء | إضافة عميل والبحث بالاسم أو الهاتف أو رقم الهوية وعرض عدد الإقامات |
+| التقارير | إيرادات، إقامات نشطة، حجوزات معلقة، وملخص ورديات |
+| الإعدادات | اسم الفندق، إدارة المستخدمين، وتجهيز موضع Firebase المستقبلي دون تفعيله حالياً |
 
-A few resources to get you started if this is your first Flutter project:
+## التشغيل
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+بعد تثبيت Flutter، نفّذ الأوامر التالية من مجلد المشروع:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run -d chrome
+```
+
+لتشغيل التطبيق على جميع أجهزة الشبكة المحلية:
+
+```bash
+flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080
+```
+
+ثم افتح العنوان التالي من جهاز متصل بالشبكة نفسها:
+
+```text
+http://<IP-اللابتوب>:8080
+```
+
+## الحساب الافتراضي
+
+اسم المستخدم: `admin`
+كلمة المرور: `admin123`
+
+يتم تخزين البيانات محلياً في Hive. بيانات Firebase محجوزة للتفعيل مستقبلاً عبر Feature Flag، ولا يتم الاتصال بخدمة خارجية في النسخة الحالية.
+
+## الاختبار
+
+```bash
+flutter test
+```
