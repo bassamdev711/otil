@@ -4,12 +4,18 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
+import 'data/local/backup_codec.dart';
 import 'data/local/hotel_local_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
@@ -484,7 +490,7 @@ class RoomCard extends ConsumerWidget {
   }
 }
 
-class BookingsPage extends ConsumerWidget { const BookingsPage({super.key}); @override Widget build(BuildContext context, WidgetRef ref) { final c = ref.watch(appControllerProvider); return ListView(padding: const EdgeInsets.all(24), children: [Row(children: [Text('${c.bookings.length} حجز', style: Theme.of(context).textTheme.titleMedium), const Spacer(), FilledButton.icon(onPressed: () => showAddBookingDialog(context), icon: const Icon(Icons.add), label: const Text('حجز جديد'))]), const SizedBox(height: 16), Card(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(columns: const [DataColumn(label: Text('رقم الحجز')), DataColumn(label: Text('العميل')), DataColumn(label: Text('الغرفة')), DataColumn(label: Text('الوصول')), DataColumn(label: Text('المغادرة')), DataColumn(label: Text('الإجمالي')), DataColumn(label: Text('الحالة')), DataColumn(label: Text('إجراء'))], rows: c.bookings.map((b) => DataRow(cells: [DataCell(Text(b.number)), DataCell(Text(c.guestById(b.guestId)?.name ?? '-')), DataCell(Text(c.roomById(b.roomId)?.number ?? '-')), DataCell(Text(dateLabel(b.checkIn))), DataCell(Text(dateLabel(b.checkOut))), DataCell(Text('${_moneyFormat.format(b.total)} ر.س')), DataCell(Chip(label: Text(statusLabel(b.status)), side: BorderSide.none, backgroundColor: statusColor(b.status).withOpacity(.12))), DataCell(PopupMenuButton<String>(onSelected: (v) { if (v == 'invoice') ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تجهيز الفاتورة للطباعة'))); else ref.read(appControllerProvider).changeBookingStatus(b, v); }, itemBuilder: (_) => [const PopupMenuItem(value: 'checkedIn', child: Text('تأكيد Check-in')), const PopupMenuItem(value: 'checkedOut', child: Text('تأكيد Check-out')), const PopupMenuItem(value: 'cancelled', child: Text('إلغاء الحجز')), const PopupMenuItem(value: 'invoice', child: Text('طباعة الفاتورة'))]))])).toList()))]; } }
+class BookingsPage extends ConsumerWidget { const BookingsPage({super.key}); @override Widget build(BuildContext context, WidgetRef ref) { final c = ref.watch(appControllerProvider); return ListView(padding: const EdgeInsets.all(24), children: [Row(children: [Text('${c.bookings.length} حجز', style: Theme.of(context).textTheme.titleMedium), const Spacer(), FilledButton.icon(onPressed: () => showAddBookingDialog(context), icon: const Icon(Icons.add), label: const Text('حجز جديد'))]), const SizedBox(height: 16), Card(child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: DataTable(columns: const [DataColumn(label: Text('رقم الحجز')), DataColumn(label: Text('العميل')), DataColumn(label: Text('الغرفة')), DataColumn(label: Text('الوصول')), DataColumn(label: Text('المغادرة')), DataColumn(label: Text('الإجمالي')), DataColumn(label: Text('الحالة')), DataColumn(label: Text('إجراء'))], rows: c.bookings.map((b) => DataRow(cells: [DataCell(Text(b.number)), DataCell(Text(c.guestById(b.guestId)?.name ?? '-')), DataCell(Text(c.roomById(b.roomId)?.number ?? '-')), DataCell(Text(dateLabel(b.checkIn))), DataCell(Text(dateLabel(b.checkOut))), DataCell(Text('${_moneyFormat.format(b.total)} ر.س')), DataCell(Chip(label: Text(statusLabel(b.status)), side: BorderSide.none, backgroundColor: statusColor(b.status).withOpacity(.12))), DataCell(PopupMenuButton<String>(onSelected: (v) { if (v == 'invoice') { printInvoice(context, b); } else { ref.read(appControllerProvider).changeBookingStatus(b, v); } }, itemBuilder: (_) => [const PopupMenuItem(value: 'checkedIn', child: Text('تأكيد Check-in')), const PopupMenuItem(value: 'checkedOut', child: Text('تأكيد Check-out')), const PopupMenuItem(value: 'cancelled', child: Text('إلغاء الحجز')), const PopupMenuItem(value: 'invoice', child: Text('طباعة الفاتورة'))]))])).toList()))]; } }
 
 class GuestsPage extends ConsumerStatefulWidget { const GuestsPage({super.key}); @override ConsumerState<GuestsPage> createState() => _GuestsPageState(); }
 class _GuestsPageState extends ConsumerState<GuestsPage> { Timer? _searchDebounce; String search = ''; @override void dispose() { _searchDebounce?.cancel(); super.dispose(); } @override Widget build(BuildContext context) { final c = ref.watch(appControllerProvider); final list = c.queryGuests(search); return ListView(padding: const EdgeInsets.all(24), children: [TextField(onChanged: (v) { _searchDebounce?.cancel(); _searchDebounce = Timer(const Duration(milliseconds: 150), () { if (mounted) setState(() => search = v); }); }, decoration: const InputDecoration(labelText: 'البحث بالاسم أو الهاتف أو رقم الهوية', prefixIcon: Icon(Icons.search), border: OutlineInputBorder())), const SizedBox(height: 16), Card(child: ListView.separated(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: list.length, separatorBuilder: (_, __) => const Divider(height: 1), itemBuilder: (_, i) { final g = list[i]; final history = c.stayCountForGuest(g.id); return ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8), leading: CircleAvatar(child: Text(g.name.isEmpty ? '?' : g.name[0])), title: Text(g.name, style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text('${g.phone} • ${g.nationality} • ${g.nationalId}'), trailing: Text('$history إقامة'); }))]; } }
@@ -511,12 +517,39 @@ class DetailLine extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(children: [Icon(icon, size: 18, color: color ?? Colors.grey[700]), const SizedBox(width: 10), Text('$label: ', style: TextStyle(color: Colors.grey[700])), Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600)))]));
 }
 
+Future<void> printInvoice(BuildContext context, BookingRecord booking) async {
+  final c = ProviderScope.containerOf(context).read(appControllerProvider);
+  final guest = c.guestById(booking.guestId);
+  final room = c.roomById(booking.roomId);
+  try {
+    final fontData = await rootBundle.load('assets/fonts/DejaVuSans.ttf');
+    final font = pw.Font.ttf(fontData);
+    final boldFont = pw.Font.ttf(fontData);
+    final document = pw.Document();
+    document.addPage(pw.Page(pageFormat: PdfPageFormat.a4, margin: const pw.EdgeInsets.all(32), theme: pw.ThemeData.withFont(base: font, bold: boldFont), build: (_) => pw.Directionality(textDirection: pw.TextDirection.rtl, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [pw.Text('مفتاح لإدارة الفندق', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 6), pw.Text('فاتورة حجز رقم ${booking.number}'), pw.Divider(), pw.SizedBox(height: 12), pw.Text('الضيف: ${guest?.name ?? '-'}'), pw.Text('الهاتف: ${guest?.phone ?? '-'}'), pw.Text('الغرفة: ${room?.number ?? '-'} — ${room?.type ?? '-'}'), pw.Text('الوصول: ${dateLabel(booking.checkIn)}'), pw.Text('المغادرة: ${dateLabel(booking.checkOut)}'), pw.SizedBox(height: 18), pw.Table(border: pw.TableBorder.all(color: PdfColors.grey400), children: [pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الوصف')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الإجمالي'))]), pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('إقامة فندقية')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${_moneyFormat.format(booking.total)} ر.س'))])]), pw.Spacer(), pw.Align(alignment: pw.Alignment.center, child: pw.Text('شكراً لاختياركم مفتاح لإدارة الفندق'))])));
+    await Printing.layoutPdf(onLayout: (_) async => document.save());
+  } catch (error) {
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تجهيز الفاتورة: $error')));
+  }
+}
+
+Future<String?> requestBackupPassword(BuildContext context, {required bool confirm}) async {
+  final password = TextEditingController();
+  final confirmation = TextEditingController();
+  final result = await showDialog<String>(context: context, builder: (_) => AlertDialog(title: Text(confirm ? 'حماية النسخة الاحتياطية' : 'كلمة مرور النسخة'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')), if (confirm) ...[const SizedBox(height: 12), TextField(controller: confirmation, obscureText: true, decoration: const InputDecoration(labelText: 'تأكيد كلمة المرور'))]]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { if (password.text.length < 8 || (confirm && password.text != confirmation.text)) return; Navigator.pop(context, password.text); }, child: const Text('متابعة'))]));
+  password.dispose();
+  confirmation.dispose();
+  return result;
+}
+
 Future<void> exportBackupToFile(BuildContext context) async {
   final c = ProviderScope.containerOf(context).read(appControllerProvider);
+  final password = await requestBackupPassword(context, confirm: true);
+  if (password == null) return;
   try {
-    final bytes = Uint8List.fromList(utf8.encode(JsonEncoder.withIndent('  ').convert(c.exportBackup())));
-    await FileSaver.instance.saveFile(name: 'miftah-backup-${DateTime.now().toIso8601String().replaceAll(':', '-')}', bytes: bytes, fileExtension: 'json', mimeType: MimeType.other);
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تصدير النسخة الاحتياطية. احفظها في مكان آمن.')));
+    final bytes = await BackupCodec.encrypt(c.exportBackup(), password);
+    await FileSaver.instance.saveFile(name: 'miftah-backup-${DateTime.now().toIso8601String().replaceAll(':', '-')}', bytes: bytes, fileExtension: 'miftah', mimeType: MimeType.other);
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تصدير نسخة مشفرة. احفظها في مكان آمن.')));
   } catch (error) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تصدير النسخة: $error')));
   }
@@ -525,12 +558,13 @@ Future<void> exportBackupToFile(BuildContext context) async {
 Future<void> restoreBackupFromFile(BuildContext context) async {
   final c = ProviderScope.containerOf(context).read(appControllerProvider);
   try {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['json'], withData: true);
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['miftah'], withData: true);
     if (result == null || result.files.single.bytes == null) return;
-    final decoded = jsonDecode(utf8.decode(result.files.single.bytes!));
-    if (decoded is! Map) throw const FormatException('ملف النسخة غير صالح');
-    await c.restoreBackup(Map<String, dynamic>.from(decoded));
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة البيانات بنجاح.')));
+    final password = await requestBackupPassword(context, confirm: false);
+    if (password == null) return;
+    final decoded = await BackupCodec.decrypt(result.files.single.bytes!, password);
+    await c.restoreBackup(decoded);
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة البيانات بنجاح. سيتم تسجيل الدخول من جديد.')));
   } catch (error) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر استعادة النسخة: $error')));
   }

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:hotel_management_app/data/local/backup_codec.dart';
 import 'package:hotel_management_app/main.dart';
 
 void main() {
@@ -8,6 +9,14 @@ void main() {
     expect(hashPassword('admin123'), isNot(hashPassword('wrong')));
     expect(hashPassword('admin123', salt: 'salt-a'), isNot(hashPassword('admin123', salt: 'salt-b')));
     expect(hashPassword('admin123', salt: 'salt-a'), isNot(hashPassword('admin123')));
+  });
+
+  test('encrypted backups round-trip and reject wrong passwords', () async {
+    final payload = <String, dynamic>{'format': 'miftah-backup', 'version': 1, 'rooms': []};
+    final encrypted = await BackupCodec.encrypt(payload, 'strong-pass');
+    final restored = await BackupCodec.decrypt(encrypted, 'strong-pass');
+    expect(restored['format'], 'miftah-backup');
+    await expectLater(BackupCodec.decrypt(encrypted, 'wrong-pass'), throwsA(anything));
   });
 
   test('status labels are localized', () {
