@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
-import 'package:pdf/pdf.dart';
+import 'package:pdf/pdf.dart' as pp;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:go_router/go_router.dart';
@@ -526,7 +526,7 @@ Future<void> printInvoice(BuildContext context, BookingRecord booking) async {
     final font = pw.Font.ttf(fontData);
     final boldFont = pw.Font.ttf(fontData);
     final document = pw.Document();
-    document.addPage(pw.Page(pageFormat: PdfPageFormat.a4, margin: const pw.EdgeInsets.all(32), theme: pw.ThemeData.withFont(base: font, bold: boldFont), build: (_) => pw.Directionality(textDirection: pw.TextDirection.rtl, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [pw.Text('مفتاح لإدارة الفندق', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 6), pw.Text('فاتورة حجز رقم ${booking.number}'), pw.Divider(), pw.SizedBox(height: 12), pw.Text('الضيف: ${guest?.name ?? '-'}'), pw.Text('الهاتف: ${guest?.phone ?? '-'}'), pw.Text('الغرفة: ${room?.number ?? '-'} — ${room?.type ?? '-'}'), pw.Text('الوصول: ${dateLabel(booking.checkIn)}'), pw.Text('المغادرة: ${dateLabel(booking.checkOut)}'), pw.SizedBox(height: 18), pw.Table(border: pw.TableBorder.all(color: PdfColors.grey400), children: [pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الوصف')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الإجمالي'))]), pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('إقامة فندقية')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${_moneyFormat.format(booking.total)} ر.س'))])]), pw.Spacer(), pw.Align(alignment: pw.Alignment.center, child: pw.Text('شكراً لاختياركم مفتاح لإدارة الفندق'))])));
+    document.addPage(pw.Page(pageFormat: pp.PdfPageFormat.a4, margin: const pw.EdgeInsets.all(32), theme: pw.ThemeData.withFont(base: font, bold: boldFont), build: (_) => pw.Directionality(textDirection: pw.TextDirection.rtl, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [pw.Text('مفتاح لإدارة الفندق', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 6), pw.Text('فاتورة حجز رقم ${booking.number}'), pw.Divider(), pw.SizedBox(height: 12), pw.Text('الضيف: ${guest?.name ?? '-'}'), pw.Text('الهاتف: ${guest?.phone ?? '-'}'), pw.Text('الغرفة: ${room?.number ?? '-'} — ${room?.type ?? '-'}'), pw.Text('الوصول: ${dateLabel(booking.checkIn)}'), pw.Text('المغادرة: ${dateLabel(booking.checkOut)}'), pw.SizedBox(height: 18), pw.Table(border: pw.TableBorder.all(color: pp.PdfColors.grey400), children: [pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الوصف')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الإجمالي'))]), pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('إقامة فندقية')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${_moneyFormat.format(booking.total)} ر.س'))])]), pw.Spacer(), pw.Align(alignment: pw.Alignment.center, child: pw.Text('شكراً لاختياركم مفتاح لإدارة الفندق'))])));
     await Printing.layoutPdf(onLayout: (_) async => document.save());
   } catch (error) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تجهيز الفاتورة: $error')));
@@ -558,7 +558,7 @@ Future<void> exportBackupToFile(BuildContext context) async {
 Future<void> restoreBackupFromFile(BuildContext context) async {
   final c = ProviderScope.containerOf(context).read(appControllerProvider);
   try {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['miftah'], withData: true);
+    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['miftah'], withData: true);
     if (result == null || result.files.single.bytes == null) return;
     final password = await requestBackupPassword(context, confirm: false);
     if (password == null) return;
