@@ -26,3 +26,11 @@ jobs:
           flutter analyze --no-fatal-infos
           flutter test
           flutter build web --release
+
+      - name: Upload web release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miftah-web-${{ github.sha }}
+          path: hotel_management_app/build/web
+          if-no-files-found: error
+          retention-days: 14

@@ -31,4 +31,10 @@ void main() {
     expect(RoomRecord.fromMap(room.toMap()).number, '101');
     expect(GuestRecord.fromMap(guest.toMap()).name, 'أحمد');
   });
+
+  test('first-run password change flag survives serialization', () {
+    final user = UserRecord(id: 'u1', name: 'مدير', username: 'admin', passwordHash: 'hash', passwordSalt: 'salt', role: 'admin', mustChangePassword: true);
+    final restored = UserRecord.fromMap(user.toMap());
+    expect(restored.mustChangePassword, isTrue);
+  });
 }
