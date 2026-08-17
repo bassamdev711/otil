@@ -1,0 +1,28 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Verify Flutter project
+        working-directory: hotel_management_app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+          flutter build web --release
