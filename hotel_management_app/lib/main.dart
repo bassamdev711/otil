@@ -83,17 +83,18 @@ Color statusColor(String status) => {'available': Colors.green, 'occupied': Colo
 String roleLabel(String? role) => {'admin': 'مدير النظام', 'receptionist': 'موظف استقبال', 'nightShift': 'وردية ليلية', 'dayShift': 'وردية نهارية'}[role] ?? 'مستخدم';
 
 class UserRecord {
-  UserRecord({required this.id, required this.name, required this.username, required this.passwordHash, required this.role, this.passwordSalt = '', this.isActive = true});
+  UserRecord({required this.id, required this.name, required this.username, required this.passwordHash, required this.role, this.passwordSalt = '', this.isActive = true, this.mustChangePassword = false});
   final String id;
   final String name;
   final String username;
   String passwordHash;
   final String role;
-  final String passwordSalt;
+  String passwordSalt;
   final bool isActive;
+  bool mustChangePassword;
 
-  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'username': username, 'passwordHash': passwordHash, 'passwordSalt': passwordSalt, 'role': role, 'isActive': isActive};
-  factory UserRecord.fromMap(Map map) => UserRecord(id: map['id'], name: map['name'], username: map['username'], passwordHash: map['passwordHash'], passwordSalt: map['passwordSalt'] ?? '', role: map['role'], isActive: map['isActive'] ?? true);
+  Map<String, dynamic> toMap() => {'id': id, 'name': name, 'username': username, 'passwordHash': passwordHash, 'passwordSalt': passwordSalt, 'role': role, 'isActive': isActive, 'mustChangePassword': mustChangePassword};
+  factory UserRecord.fromMap(Map map) => UserRecord(id: map['id'], name: map['name'], username: map['username'], passwordHash: map['passwordHash'], passwordSalt: map['passwordSalt'] ?? '', role: map['role'], isActive: map['isActive'] ?? true, mustChangePassword: map['mustChangePassword'] ?? false);
 }
 
 class RoomRecord {
@@ -179,7 +180,7 @@ class AppController extends ChangeNotifier {
     final raw = _store.readMeta('seeded');
     if (raw != true) {
       final adminSalt = _uuid.v4();
-      users = [UserRecord(id: _uuid.v4(), name: 'مدير النظام', username: 'admin', passwordHash: hashPassword('admin123', salt: adminSalt), passwordSalt: adminSalt, role: 'admin')];
+      users = [UserRecord(id: _uuid.v4(), name: 'مدير النظام', username: 'admin', passwordHash: hashPassword('admin123', salt: adminSalt), passwordSalt: adminSalt, role: 'admin', mustChangePassword: true)];
       rooms = [
         RoomRecord(id: _uuid.v4(), number: '101', type: 'مفردة', floor: 1, price: 180, status: 'available'),
         RoomRecord(id: _uuid.v4(), number: '102', type: 'مزدوجة', floor: 1, price: 260, status: 'occupied'),
@@ -205,6 +206,14 @@ class AppController extends ChangeNotifier {
         hotelName = 'مفتاح لإدارة الفندق';
         await _store.putMeta('hotelName', hotelName);
       }
+      var migratedDefaultPassword = false;
+      for (final user in users) {
+        if (user.username == 'admin' && !user.mustChangePassword && user.passwordSalt.isNotEmpty && user.passwordHash == hashPassword('admin123', salt: user.passwordSalt)) {
+          user.mustChangePassword = true;
+          migratedDefaultPassword = true;
+        }
+      }
+      if (migratedDefaultPassword) await _save();
     }
     _rebuildIndexes();
     initialized = true;
@@ -251,6 +260,32 @@ class AppController extends ChangeNotifier {
     failedLoginAttempts = 0;
     loginLockedUntil = null;
     currentUser = match;
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> forceChangeCurrentPassword(String nextPassword) async {
+    final user = currentUser;
+    if (user == null || !user.mustChangePassword || nextPassword.length < 8) return false;
+    final salt = _uuid.v4();
+    user.passwordSalt = salt;
+    user.passwordHash = hashPassword(nextPassword, salt: salt);
+    user.mustChangePassword = false;
+    await _save();
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> changeCurrentPassword(String currentPassword, String nextPassword) async {
+    final user = currentUser;
+    if (user == null || nextPassword.length < 8) return false;
+    final currentHash = user.passwordSalt.isEmpty ? hashPassword(currentPassword) : hashPassword(currentPassword, salt: user.passwordSalt);
+    if (currentHash != user.passwordHash) return false;
+    final salt = _uuid.v4();
+    user.passwordSalt = salt;
+    user.passwordHash = hashPassword(nextPassword, salt: salt);
+    user.mustChangePassword = false;
+    await _save();
     notifyListeners();
     return true;
   }
@@ -389,12 +424,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: busy ? null : () {
+                        onPressed: busy ? null : () async {
                           setState(() => busy = true);
                           final auth = ref.read(appControllerProvider);
                           final ok = auth.login(_user.text.trim(), _pass.text);
                           if (ok) {
-                            context.go('/home');
+                            if (auth.currentUser?.mustChangePassword == true) {
+                              final changed = await showForcePasswordChangeDialog(context);
+                              if (!mounted) return;
+                              if (!changed) {
+                                auth.logout();
+                                setState(() => busy = false);
+                                return;
+                              }
+                            }
+                            if (mounted) context.go('/home');
                           } else {
                             setState(() {
                               error = auth.isLoginLocked ? 'تم إيقاف المحاولات مؤقتاً. حاول بعد 30 ثانية.' : 'بيانات الدخول غير صحيحة';
@@ -417,6 +461,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ),
     );
   }
+}
+
+Future<bool> showForcePasswordChangeDialog(BuildContext context) async {
+  final password = TextEditingController();
+  final confirmation = TextEditingController();
+  String? error;
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(
+      title: const Text('أنشئ كلمة مرور جديدة'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('لأمان الإصدار التجاري يجب تغيير كلمة المرور الافتراضية قبل المتابعة.'),
+        const SizedBox(height: 14),
+        TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور الجديدة', helperText: '8 أحرف على الأقل')),
+        const SizedBox(height: 12),
+        TextField(controller: confirmation, obscureText: true, decoration: const InputDecoration(labelText: 'تأكيد كلمة المرور')),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 10), child: Text(error!, style: const TextStyle(color: Colors.red))),
+      ]),
+      actions: [
+        FilledButton(onPressed: () async { if (password.text.length < 8) { setState(() => error = 'يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل'); return; } if (password.text != confirmation.text) { setState(() => error = 'كلمتا المرور غير متطابقتين'); return; } final ok = await ProviderScope.containerOf(context).read(appControllerProvider).forceChangeCurrentPassword(password.text); if (ok && dialogContext.mounted) Navigator.pop(dialogContext, true); }, child: const Text('حفظ والمتابعة')),
+      ],
+    )),
+  );
+  password.dispose();
+  confirmation.dispose();
+  return result ?? false;
 }
 
 class MainShell extends ConsumerStatefulWidget {
