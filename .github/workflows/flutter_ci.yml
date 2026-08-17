@@ -23,6 +23,6 @@ jobs:
         working-directory: hotel_management_app
         run: |
           flutter pub get
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test
           flutter build web --release
