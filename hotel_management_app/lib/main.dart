@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
 import 'data/local/hotel_local_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -275,11 +278,11 @@ class AppController extends ChangeNotifier {
   double get occupancy => rooms.isEmpty ? 0 : occupiedRooms / rooms.length;
   double get revenue => bookings.where((e) => e.status != 'cancelled').fold(0, (sum, e) => sum + e.total);
 
-  Future<void> addRoom(String number, String type, int floor, double price) async { if (!canManageFrontDesk) return; rooms.add(RoomRecord(id: _uuid.v4(), number: number, type: type, floor: floor, price: price, status: 'available')); _rebuildIndexes(); await _save(); notifyListeners(); }
+  Future<void> addRoom(String number, String type, int floor, double price) async { final normalized = number.trim(); if (!canManageFrontDesk || normalized.isEmpty || floor < 1 || price <= 0 || rooms.any((room) => room.number.toLowerCase() == normalized.toLowerCase())) return; rooms.add(RoomRecord(id: _uuid.v4(), number: normalized, type: type, floor: floor, price: price, status: 'available')); _rebuildIndexes(); await _save(); notifyListeners(); }
   Future<void> updateRoomStatus(RoomRecord room, String status) async { if (!canManageFrontDesk) return; room.status = status; _rebuildIndexes(); await _save(); notifyListeners(); }
   Future<void> addGuest(String name, String phone, String nationalId, String nationality, String email) async { if (!canManageFrontDesk) return; guests.add(GuestRecord(id: _uuid.v4(), name: name, phone: phone, nationalId: nationalId, nationality: nationality, email: email)); _rebuildIndexes(); await _save(); notifyListeners(); }
   Future<void> addBooking(String guestId, String roomId, DateTime start, DateTime end, String notes) async {
-    if (!canManageFrontDesk) return;
+    if (!canManageFrontDesk || !guests.any((guest) => guest.id == guestId) || end.isBefore(start) || !rooms.any((room) => room.id == roomId && room.status == 'available')) return;
     final room = roomById(roomId)!;
     final nights = end.difference(start).inDays.clamp(1, 365).toDouble();
     bookings.insert(0, BookingRecord(id: _uuid.v4(), number: 'BK-${1000 + bookings.length + 1}', guestId: guestId, roomId: roomId, checkIn: start, checkOut: end, status: 'pending', total: room.price * nights, notes: notes));
@@ -288,8 +291,39 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
   Future<void> changeBookingStatus(BookingRecord booking, String status) async { if (!canOperateStay) return; booking.status = status; final room = roomById(booking.roomId); if (room != null && status == 'checkedIn') room.status = 'occupied'; if (room != null && status == 'checkedOut') room.status = 'cleaning'; _rebuildIndexes(); await _save(); notifyListeners(); }
-  Future<void> addUser(String name, String username, String password, String role) async { if (!isAdmin) return; final salt = _uuid.v4(); users.add(UserRecord(id: _uuid.v4(), name: name, username: username.trim().toLowerCase(), passwordHash: hashPassword(password, salt: salt), passwordSalt: salt, role: role)); await _save(); notifyListeners(); }
+  Future<void> addUser(String name, String username, String password, String role) async { if (!isAdmin || name.trim().isEmpty || username.trim().length < 3 || password.length < 8 || users.any((user) => user.username == username.trim().toLowerCase())) return; final salt = _uuid.v4(); users.add(UserRecord(id: _uuid.v4(), name: name, username: username.trim().toLowerCase(), passwordHash: hashPassword(password, salt: salt), passwordSalt: salt, role: role)); await _save(); notifyListeners(); }
   Future<void> updateHotelName(String value) async { if (!isAdmin) return; hotelName = value.trim().isEmpty ? 'مفتاح لإدارة الفندق' : value.trim(); await _save(); notifyListeners(); }
+
+  Map<String, dynamic> exportBackup() {
+    if (!isAdmin) throw StateError('Admin access required');
+    return {'format': 'miftah-backup', 'version': 1, 'createdAt': DateTime.now().toUtc().toIso8601String(), 'hotelName': hotelName, 'users': users.map((e) => e.toMap()).toList(), 'rooms': rooms.map((e) => e.toMap()).toList(), 'guests': guests.map((e) => e.toMap()).toList(), 'bookings': bookings.map((e) => e.toMap()).toList()};
+  }
+
+  Future<void> restoreBackup(Map<String, dynamic> payload) async {
+    if (!isAdmin) throw StateError('Admin access required');
+    if (payload['format'] != 'miftah-backup' || payload['version'] != 1) throw const FormatException('صيغة النسخة الاحتياطية غير مدعومة');
+    final nextUsers = _backupList(payload['users'], UserRecord.fromMap);
+    final nextRooms = _backupList(payload['rooms'], RoomRecord.fromMap);
+    final nextGuests = _backupList(payload['guests'], GuestRecord.fromMap);
+    final nextBookings = _backupList(payload['bookings'], BookingRecord.fromMap);
+    if (nextUsers.isEmpty || nextRooms.isEmpty) throw const FormatException('النسخة لا تحتوي على مستخدمين وغرف صالحة');
+    final guestIds = nextGuests.map((guest) => guest.id).toSet();
+    final roomIds = nextRooms.map((room) => room.id).toSet();
+    if (nextBookings.any((booking) => !guestIds.contains(booking.guestId) || !roomIds.contains(booking.roomId))) throw const FormatException('توجد حجوزات مرتبطة ببيانات مفقودة');
+    users = nextUsers;
+    rooms = nextRooms;
+    guests = nextGuests;
+    bookings = nextBookings;
+    hotelName = (payload['hotelName'] as String?)?.trim().isNotEmpty == true ? (payload['hotelName'] as String).trim() : hotelName;
+    _rebuildIndexes();
+    await _save();
+    notifyListeners();
+  }
+
+  List<T> _backupList<T>(dynamic raw, T Function(Map) parser) {
+    if (raw is! List) throw const FormatException('بيانات النسخة غير مكتملة');
+    return raw.whereType<Map>().map((item) => parser(Map<String, dynamic>.from(item))).toList();
+  }
 }
 
 class HotelApp extends ConsumerWidget {
@@ -457,7 +491,7 @@ class _GuestsPageState extends ConsumerState<GuestsPage> { Timer? _searchDebounc
 class ReportsPage extends ConsumerWidget { const ReportsPage({super.key}); @override Widget build(BuildContext context, WidgetRef ref) { final c = ref.watch(appControllerProvider); final checkedIn = c.bookings.where((b) => b.status == 'checkedIn').length; final pending = c.bookings.where((b) => b.status == 'pending').length; return ListView(padding: const EdgeInsets.all(24), children: [Text('ملخص الأداء', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), Wrap(spacing: 16, runSpacing: 16, children: [StatCard(label: 'إيرادات الحجوزات', value: '${_moneyFormat.format(c.revenue)} ر.س', icon: Icons.payments, color: Colors.indigo), StatCard(label: 'إقامات نشطة', value: '$checkedIn', icon: Icons.nights_stay, color: Colors.teal), StatCard(label: 'حجوزات معلقة', value: '$pending', icon: Icons.pending_actions, color: Colors.orange)]), const SizedBox(height: 24), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('تقرير الوردية', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 16), const ListTile(leading: Icon(Icons.nightlight_round), title: Text('الوردية الليلية'), subtitle: Text('تقرير الوصول والمغادرة والتسويات اليومية'), trailing: Icon(Icons.chevron_left)), const Divider(), const ListTile(leading: Icon(Icons.wb_sunny_outlined), title: Text('الوردية النهارية'), subtitle: Text('حالة الغرف والحجوزات الجديدة'), trailing: Icon(Icons.chevron_left))])))]); } }
 
 class SettingsPage extends ConsumerStatefulWidget { const SettingsPage({super.key, required this.isAdmin}); final bool isAdmin; @override ConsumerState<SettingsPage> createState() => _SettingsPageState(); }
-class _SettingsPageState extends ConsumerState<SettingsPage> { late final TextEditingController name; @override void initState() { super.initState(); name = TextEditingController(); } @override void dispose() { name.dispose(); super.dispose(); } @override Widget build(BuildContext context) { final c = ref.watch(appControllerProvider); if (name.text.isEmpty) name.text = c.hotelName; if (!widget.isAdmin) return const Center(child: Text('هذه الصفحة متاحة لمدير النظام فقط')); return ListView(padding: const EdgeInsets.all(24), children: [Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('إعدادات الفندق', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الفندق', prefixIcon: Icon(Icons.hotel), border: OutlineInputBorder())), const SizedBox(height: 14), FilledButton(onPressed: () async { await c.updateHotelName(name.text); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ الإعدادات'))); }, child: const Text('حفظ'))])), const SizedBox(height: 18), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('المستخدمون والصلاحيات', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 12), ...c.users.map((u) => ListTile(leading: const Icon(Icons.account_circle_outlined), title: Text(u.name), subtitle: Text('${u.username} • ${roleLabel(u.role)}'), trailing: Switch(value: u.isActive, onChanged: null))), const SizedBox(height: 8), OutlinedButton.icon(onPressed: () => showAddUserDialog(context), icon: const Icon(Icons.person_add), label: const Text('إضافة مستخدم'))])), const SizedBox(height: 18), Card(child: const ListTile(leading: Icon(Icons.cloud_outlined), title: Text('Firebase'), subtitle: Text('جاهز للتفعيل مستقبلاً — التخزين المحلي يعمل حالياً عبر Hive/IndexedDB'), trailing: Chip(label: Text('معطل'))))]); } }
+class _SettingsPageState extends ConsumerState<SettingsPage> { late final TextEditingController name; @override void initState() { super.initState(); name = TextEditingController(); } @override void dispose() { name.dispose(); super.dispose(); } @override Widget build(BuildContext context) { final c = ref.watch(appControllerProvider); if (name.text.isEmpty) name.text = c.hotelName; if (!widget.isAdmin) return const Center(child: Text('هذه الصفحة متاحة لمدير النظام فقط')); return ListView(padding: const EdgeInsets.all(24), children: [Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('إعدادات الفندق', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 18), TextField(controller: name, decoration: const InputDecoration(labelText: 'اسم الفندق', prefixIcon: Icon(Icons.hotel), border: OutlineInputBorder())), const SizedBox(height: 14), FilledButton(onPressed: () async { await c.updateHotelName(name.text); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ الإعدادات'))); }, child: const Text('حفظ'))])), const SizedBox(height: 18), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('المستخدمون والصلاحيات', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 12), ...c.users.map((u) => ListTile(leading: const Icon(Icons.account_circle_outlined), title: Text(u.name), subtitle: Text('${u.username} • ${roleLabel(u.role)}'), trailing: Switch(value: u.isActive, onChanged: null))), const SizedBox(height: 8), OutlinedButton.icon(onPressed: () => showAddUserDialog(context), icon: const Icon(Icons.person_add), label: const Text('إضافة مستخدم'))])), const SizedBox(height: 18), Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('حماية البيانات', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 8), const Text('أنشئ نسخة احتياطية دورية واحفظها خارج الجهاز. ملف النسخة يحتوي على بيانات تشغيلية حساسة.'), const SizedBox(height: 14), Wrap(spacing: 10, runSpacing: 10, children: [FilledButton.icon(onPressed: () => exportBackupToFile(context), icon: const Icon(Icons.download), label: const Text('تصدير نسخة')), OutlinedButton.icon(onPressed: () => restoreBackupFromFile(context), icon: const Icon(Icons.restore), label: const Text('استعادة نسخة'))])]))), const SizedBox(height: 18), Card(child: const ListTile(leading: Icon(Icons.cloud_outlined), title: Text('Firebase'), subtitle: Text('جاهز للتفعيل مستقبلاً — التخزين المحلي يعمل حالياً عبر Hive/IndexedDB'), trailing: Chip(label: Text('معطل'))))]); } }
 
 Future<void> showRoomDetails(BuildContext context, RoomRecord room) async {
   final c = ProviderScope.containerOf(context).read(appControllerProvider);
@@ -474,6 +508,31 @@ class DetailLine extends StatelessWidget {
   final Color? color;
   @override
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(children: [Icon(icon, size: 18, color: color ?? Colors.grey[700]), const SizedBox(width: 10), Text('$label: ', style: TextStyle(color: Colors.grey[700])), Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w600)))]));
+}
+
+Future<void> exportBackupToFile(BuildContext context) async {
+  final c = ProviderScope.containerOf(context).read(appControllerProvider);
+  try {
+    final bytes = Uint8List.fromList(utf8.encode(JsonEncoder.withIndent('  ').convert(c.exportBackup())));
+    await FileSaver.instance.saveFile(name: 'miftah-backup-${DateTime.now().toIso8601String().replaceAll(':', '-')}', bytes: bytes, fileExtension: 'json', mimeType: MimeType.other);
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تصدير النسخة الاحتياطية. احفظها في مكان آمن.')));
+  } catch (error) {
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تصدير النسخة: $error')));
+  }
+}
+
+Future<void> restoreBackupFromFile(BuildContext context) async {
+  final c = ProviderScope.containerOf(context).read(appControllerProvider);
+  try {
+    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: const ['json'], withData: true);
+    if (result == null || result.files.single.bytes == null) return;
+    final decoded = jsonDecode(utf8.decode(result.files.single.bytes!));
+    if (decoded is! Map) throw const FormatException('ملف النسخة غير صالح');
+    await c.restoreBackup(Map<String, dynamic>.from(decoded));
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة البيانات بنجاح.')));
+  } catch (error) {
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر استعادة النسخة: $error')));
+  }
 }
 
 Future<void> showAddRoomDialog(BuildContext context) async { final number = TextEditingController(), floor = TextEditingController(text: '1'), price = TextEditingController(text: '200'); String type = 'مفردة'; await showDialog(context: context, builder: (_) => StatefulBuilder(builder: (context, set) => AlertDialog(title: const Text('إضافة غرفة'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: number, decoration: const InputDecoration(labelText: 'رقم الغرفة')), TextField(controller: floor, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الطابق')), TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'السعر لليلة')), DropdownButtonFormField(value: type, decoration: const InputDecoration(labelText: 'النوع'), items: ['مفردة', 'مزدوجة', 'جناح', 'VIP'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: (v) => set(() => type = v!))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { if (number.text.isNotEmpty) { final c = ProviderScope.containerOf(context).read(appControllerProvider); c.addRoom(number.text, type, int.tryParse(floor.text) ?? 1, double.tryParse(price.text) ?? 0); Navigator.pop(context); } }, child: const Text('إضافة'))])); }
