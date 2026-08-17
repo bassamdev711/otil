@@ -946,7 +946,45 @@ Future<void> showAddUserDialog(BuildContext context) async {
   final username = TextEditingController();
   final password = TextEditingController();
   String role = 'receptionist';
-  await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(title: const Text('إضافة مستخدم'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم')), TextField(controller: username, decoration: const InputDecoration(labelText: 'اسم المستخدم')), TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')), DropdownButtonFormField<String>(initialValue: role, decoration: const InputDecoration(labelText: 'الدور'), items: const [DropdownMenuItem<String>(value: 'receptionist', child: Text('موظف استقبال')), DropdownMenuItem<String>(value: 'nightShift', child: Text('وردية ليلية')), DropdownMenuItem<String>(value: 'dayShift', child: Text('وردية نهارية'))], onChanged: (value) { if (value != null) setState(() => role = value); })])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), FilledButton(onPressed: () { if (name.text.trim().isEmpty || username.text.trim().length < 3 || password.text.length < 8) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تحقق من الاسم واسم المستخدم وكلمة المرور'))); return; } ProviderScope.containerOf(context).read(appControllerProvider).addUser(name.text.trim(), username.text.trim(), password.text, role); Navigator.pop(dialogContext); }, child: const Text('إضافة'))]));
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setState) => AlertDialog(
+        title: const Text('إضافة مستخدم'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم')),
+            TextField(controller: username, decoration: const InputDecoration(labelText: 'اسم المستخدم')),
+            TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')),
+            DropdownButtonFormField<String>(
+              initialValue: role,
+              decoration: const InputDecoration(labelText: 'الدور'),
+              items: const [
+                DropdownMenuItem<String>(value: 'receptionist', child: Text('موظف استقبال')),
+                DropdownMenuItem<String>(value: 'nightShift', child: Text('وردية ليلية')),
+                DropdownMenuItem<String>(value: 'dayShift', child: Text('وردية نهارية')),
+              ],
+              onChanged: (value) { if (value != null) setState(() => role = value); },
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () {
+              if (name.text.trim().isEmpty || username.text.trim().length < 3 || password.text.length < 8) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تحقق من الاسم واسم المستخدم وكلمة المرور')));
+                return;
+              }
+              ProviderScope.containerOf(context).read(appControllerProvider).addUser(name.text.trim(), username.text.trim(), password.text, role);
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('إضافة'),
+          ),
+        ],
+      ),
+    ),
+  );
   name.dispose();
   username.dispose();
   password.dispose();
