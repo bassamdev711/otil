@@ -802,9 +802,33 @@ Future<void> printInvoice(BuildContext context, BookingRecord booking) async {
   try {
     final fontData = await rootBundle.load('assets/fonts/DejaVuSans.ttf');
     final font = pw.Font.ttf(fontData);
-    final boldFont = pw.Font.ttf(fontData);
-    final document = pw.Document();
-    document.addPage(pw.Page(pageFormat: pp.PdfPageFormat.a4, margin: const pw.EdgeInsets.all(32), theme: pw.ThemeData.withFont(base: font, bold: boldFont), build: (_) => pw.Directionality(textDirection: pw.TextDirection.rtl, child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [pw.Text('مفتاح لإدارة الفندق', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)), pw.SizedBox(height: 6), pw.Text('فاتورة حجز رقم ${booking.number}'), pw.Divider(), pw.SizedBox(height: 12), pw.Text('الضيف: ${guest?.name ?? '-'}'), pw.Text('الهاتف: ${guest?.phone ?? '-'}'), pw.Text('الغرفة: ${room?.number ?? '-'} — ${room?.type ?? '-'}'), pw.Text('الوصول: ${dateLabel(booking.checkIn)}'), pw.Text('المغادرة: ${dateLabel(booking.checkOut)}'), pw.SizedBox(height: 18), pw.Table(border: pw.TableBorder.all(color: pp.PdfColors.grey400), children: [pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الوصف')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الإجمالي'))]), pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('إقامة فندقية')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${_moneyFormat.format(booking.total)} ر.س'))])]), pw.Spacer(), pw.Align(alignment: pw.Alignment.center, child: pw.Text('شكراً لاختياركم مفتاح لإدارة الفندق'))])));
+    final document = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: font));
+    document.addPage(pw.Page(
+      pageFormat: pp.PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(32),
+      build: (_) => pw.Directionality(
+        textDirection: pw.TextDirection.rtl,
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+          pw.Text('مفتاح لإدارة الفندق', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 6),
+          pw.Text('فاتورة حجز رقم ${booking.number}'),
+          pw.Divider(),
+          pw.SizedBox(height: 12),
+          pw.Text('الضيف: ${guest?.name ?? '-'}'),
+          pw.Text('الهاتف: ${guest?.phone ?? '-'}'),
+          pw.Text('الغرفة: ${room?.number ?? '-'} — ${room?.type ?? '-'}'),
+          pw.Text('الوصول: ${dateLabel(booking.checkIn)}'),
+          pw.Text('المغادرة: ${dateLabel(booking.checkOut)}'),
+          pw.SizedBox(height: 18),
+          pw.Table(border: pw.TableBorder.all(color: pp.PdfColors.grey400), children: [
+            pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الوصف')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('الإجمالي'))]),
+            pw.TableRow(children: [pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('إقامة فندقية')), pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text('${_moneyFormat.format(booking.total)} ر.س'))]),
+          ]),
+          pw.Spacer(),
+          pw.Align(alignment: pw.Alignment.center, child: pw.Text('شكراً لاختياركم مفتاح لإدارة الفندق')),
+        ]),
+      ),
+    ));
     await Printing.layoutPdf(onLayout: (_) async => document.save());
   } catch (error) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذر تجهيز الفاتورة: $error')));
@@ -814,7 +838,23 @@ Future<void> printInvoice(BuildContext context, BookingRecord booking) async {
 Future<String?> requestBackupPassword(BuildContext context, {required bool confirm}) async {
   final password = TextEditingController();
   final confirmation = TextEditingController();
-  final result = await showDialog<String>(context: context, builder: (_) => AlertDialog(title: Text(confirm ? 'حماية النسخة الاحتياطية' : 'كلمة مرور النسخة'), content: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')), if (confirm) ...[const SizedBox(height: 12), TextField(controller: confirmation, obscureText: true, decoration: const InputDecoration(labelText: 'تأكيد كلمة المرور'))]]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')), FilledButton(onPressed: () { if (password.text.length < 8 || (confirm && password.text != confirmation.text)) return; Navigator.pop(context, password.text); }, child: const Text('متابعة'))]));
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(confirm ? 'حماية النسخة الاحتياطية' : 'كلمة مرور النسخة'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')),
+        if (confirm) ...[
+          const SizedBox(height: 12),
+          TextField(controller: confirmation, obscureText: true, decoration: const InputDecoration(labelText: 'تأكيد كلمة المرور')),
+        ],
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+        FilledButton(onPressed: () { if (password.text.length < 8 || (confirm && password.text != confirmation.text)) return; Navigator.pop(dialogContext, password.text); }, child: const Text('متابعة')),
+      ],
+    ),
+  );
   password.dispose();
   confirmation.dispose();
   return result;
@@ -853,7 +893,22 @@ Future<void> showAddRoomDialog(BuildContext context) async {
   final floor = TextEditingController(text: '1');
   final price = TextEditingController(text: '200');
   String type = 'مفردة';
-  await showDialog<void>(context: context, builder: (_) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(title: const Text('إضافة غرفة'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: number, decoration: const InputDecoration(labelText: 'رقم الغرفة')), TextField(controller: floor, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الطابق')), TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'السعر لليلة')), DropdownButtonFormField<String>(initialValue: type, decoration: const InputDecoration(labelText: 'النوع'), items: const ['مفردة', 'مزدوجة', 'جناح', 'VIP'].map((value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(), onChanged: (value) { if (value != null) setState(() => type = value); })])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), FilledButton(onPressed: () { final floorValue = int.tryParse(floor.text); final priceValue = double.tryParse(price.text); if (number.text.trim().isEmpty || floorValue == null || floorValue < 1 || priceValue == null || priceValue <= 0) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل رقم الغرفة والطابق والسعر بشكل صحيح'))); return; } ProviderScope.containerOf(context).read(appControllerProvider).addRoom(number.text, type, floorValue, priceValue); Navigator.pop(dialogContext); }, child: const Text('إضافة'))]));
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(
+      title: const Text('إضافة غرفة'),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: number, decoration: const InputDecoration(labelText: 'رقم الغرفة')),
+        TextField(controller: floor, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الطابق')),
+        TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'السعر لليلة')),
+        DropdownButtonFormField<String>(initialValue: type, decoration: const InputDecoration(labelText: 'النوع'), items: const ['مفردة', 'مزدوجة', 'جناح', 'VIP'].map((value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(), onChanged: (value) { if (value != null) setState(() => type = value); }),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+        FilledButton(onPressed: () { final floorValue = int.tryParse(floor.text); final priceValue = double.tryParse(price.text); if (number.text.trim().isEmpty || floorValue == null || floorValue < 1 || priceValue == null || priceValue <= 0) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أدخل رقم الغرفة والطابق والسعر بشكل صحيح'))); return; } ProviderScope.containerOf(context).read(appControllerProvider).addRoom(number.text, type, floorValue, priceValue); Navigator.pop(dialogContext); }, child: const Text('إضافة')),
+      ],
+    )),
+  );
   number.dispose();
   floor.dispose();
   price.dispose();
@@ -882,7 +937,7 @@ Future<void> showAddBookingDialog(BuildContext context) async {
   DateTime start = DateTime.now();
   DateTime end = DateTime.now().add(const Duration(days: 1));
   final notes = TextEditingController();
-  await showDialog<void>(context: context, builder: (_) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(title: const Text('إنشاء حجز جديد'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [DropdownButtonFormField<String>(initialValue: guest, decoration: const InputDecoration(labelText: 'العميل'), items: c.guests.map((item) => DropdownMenuItem<String>(value: item.id, child: Text(item.name))).toList(), onChanged: (value) { if (value != null) setState(() => guest = value); }), DropdownButtonFormField<String>(initialValue: room, decoration: const InputDecoration(labelText: 'الغرفة'), items: availableRooms.map((item) => DropdownMenuItem<String>(value: item.id, child: Text('${item.number} — ${item.type}'))).toList(), onChanged: (value) { if (value != null) setState(() => room = value); }), ListTile(title: Text('الوصول: ${dateLabel(start)}'), trailing: const Icon(Icons.calendar_today), onTap: () async { final date = await showDatePicker(context: dialogContext, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: start); if (date != null) setState(() => start = date); }), ListTile(title: Text('المغادرة: ${dateLabel(end)}'), trailing: const Icon(Icons.calendar_today), onTap: () async { final date = await showDatePicker(context: dialogContext, firstDate: start.add(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: end); if (date != null) setState(() => end = date); }), TextField(controller: notes, decoration: const InputDecoration(labelText: 'ملاحظات'))])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), FilledButton(onPressed: () { c.addBooking(guest, room, start, end, notes.text.trim()); Navigator.pop(dialogContext); }, child: const Text('إنشاء الحجز'))]));
+  await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(title: const Text('إنشاء حجز جديد'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [DropdownButtonFormField<String>(initialValue: guest, decoration: const InputDecoration(labelText: 'العميل'), items: c.guests.map((item) => DropdownMenuItem<String>(value: item.id, child: Text(item.name))).toList(), onChanged: (value) { if (value != null) setState(() => guest = value); }), DropdownButtonFormField<String>(initialValue: room, decoration: const InputDecoration(labelText: 'الغرفة'), items: availableRooms.map((item) => DropdownMenuItem<String>(value: item.id, child: Text('${item.number} — ${item.type}'))).toList(), onChanged: (value) { if (value != null) setState(() => room = value); }), ListTile(title: Text('الوصول: ${dateLabel(start)}'), trailing: const Icon(Icons.calendar_today), onTap: () async { final date = await showDatePicker(context: dialogContext, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: start); if (date != null) setState(() => start = date); }), ListTile(title: Text('المغادرة: ${dateLabel(end)}'), trailing: const Icon(Icons.calendar_today), onTap: () async { final date = await showDatePicker(context: dialogContext, firstDate: start.add(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365)), initialDate: end); if (date != null) setState(() => end = date); }), TextField(controller: notes, decoration: const InputDecoration(labelText: 'ملاحظات'))])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), FilledButton(onPressed: () { c.addBooking(guest, room, start, end, notes.text.trim()); Navigator.pop(dialogContext); }, child: const Text('إنشاء الحجز'))])));
   notes.dispose();
 }
 
@@ -891,7 +946,7 @@ Future<void> showAddUserDialog(BuildContext context) async {
   final username = TextEditingController();
   final password = TextEditingController();
   String role = 'receptionist';
-  await showDialog<void>(context: context, builder: (_) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(title: const Text('إضافة مستخدم'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم')), TextField(controller: username, decoration: const InputDecoration(labelText: 'اسم المستخدم')), TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')), DropdownButtonFormField<String>(initialValue: role, decoration: const InputDecoration(labelText: 'الدور'), items: const [DropdownMenuItem<String>(value: 'receptionist', child: Text('موظف استقبال')), DropdownMenuItem<String>(value: 'nightShift', child: Text('وردية ليلية')), DropdownMenuItem<String>(value: 'dayShift', child: Text('وردية نهارية'))], onChanged: (value) { if (value != null) setState(() => role = value); })])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), FilledButton(onPressed: () { if (name.text.trim().isEmpty || username.text.trim().length < 3 || password.text.length < 8) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تحقق من الاسم واسم المستخدم وكلمة المرور'))); return; } ProviderScope.containerOf(context).read(appControllerProvider).addUser(name.text.trim(), username.text.trim(), password.text, role); Navigator.pop(dialogContext); }, child: const Text('إضافة'))]));
+  await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(builder: (dialogContext, setState) => AlertDialog(title: const Text('إضافة مستخدم'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: name, decoration: const InputDecoration(labelText: 'الاسم')), TextField(controller: username, decoration: const InputDecoration(labelText: 'اسم المستخدم')), TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'كلمة المرور', helperText: '8 أحرف على الأقل')), DropdownButtonFormField<String>(initialValue: role, decoration: const InputDecoration(labelText: 'الدور'), items: const [DropdownMenuItem<String>(value: 'receptionist', child: Text('موظف استقبال')), DropdownMenuItem<String>(value: 'nightShift', child: Text('وردية ليلية')), DropdownMenuItem<String>(value: 'dayShift', child: Text('وردية نهارية'))], onChanged: (value) { if (value != null) setState(() => role = value); })])), actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')), FilledButton(onPressed: () { if (name.text.trim().isEmpty || username.text.trim().length < 3 || password.text.length < 8) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تحقق من الاسم واسم المستخدم وكلمة المرور'))); return; } ProviderScope.containerOf(context).read(appControllerProvider).addUser(name.text.trim(), username.text.trim(), password.text, role); Navigator.pop(dialogContext); }, child: const Text('إضافة'))]));
   name.dispose();
   username.dispose();
   password.dispose();
