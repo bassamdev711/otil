@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_management_app/main.dart';
 
 void main() {
-  test('password hashing is deterministic', () {
+  test('password hashing is deterministic and salt-aware', () {
     expect(hashPassword('admin123'), hashPassword('admin123'));
     expect(hashPassword('admin123'), isNot(hashPassword('wrong')));
+    expect(hashPassword('admin123', salt: 'salt-a'), isNot(hashPassword('admin123', salt: 'salt-b')));
+    expect(hashPassword('admin123', salt: 'salt-a'), isNot(hashPassword('admin123')));
   });
 
   test('status labels are localized', () {
