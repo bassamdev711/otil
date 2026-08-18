@@ -42,7 +42,7 @@ class RemoteHotelStore implements HotelDataSource {
       });
 
   Future<void> upsert(String collection, String id, Map<String, dynamic> value) => _enqueue(() async {
-        final next = [...(_collections[collection] ?? const [])];
+        final next = <Map<String, dynamic>>[...(_collections[collection] ?? const <Map<String, dynamic>>[])];
         final index = next.indexWhere((item) => item['id']?.toString() == id);
         if (index == -1) {
           next.add(Map<String, dynamic>.from(value));
