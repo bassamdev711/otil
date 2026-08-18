@@ -54,6 +54,14 @@ jobs:
           flutter pub get
           flutter build apk --release --target-platform android-arm64
           flutter build appbundle --release --target-platform android-arm64
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          aab=build/app/outputs/bundle/release/app-release.aab
+          for artifact in "$apk" "$aab"; do
+            if unzip -l "$artifact" | grep -Eq 'armeabi-v7a|x86_64|x86/'; then
+              echo "Unexpected non-ARM64 native library found in $artifact"
+              exit 1
+            fi
+          done
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4

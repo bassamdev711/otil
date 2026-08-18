@@ -19,6 +19,15 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/armeabi-v7a/libdartjni.so",
+                "lib/x86_64/libdartjni.so",
+            )
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.miftah.hotelmanagement"
