@@ -350,10 +350,11 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _refreshRemoteState() async {
-    if (!initialized || _store is! RemoteHotelStore) return;
+    final remoteStore = _store;
+    if (!initialized || remoteStore is! RemoteHotelStore) return;
     final previousUserId = currentUser?.id;
     try {
-      await (_store as RemoteHotelStore).refresh();
+      await remoteStore.refresh();
       users = _readList('users', UserRecord.fromMap);
       rooms = _readList('rooms', RoomRecord.fromMap);
       guests = _readList('guests', GuestRecord.fromMap);
