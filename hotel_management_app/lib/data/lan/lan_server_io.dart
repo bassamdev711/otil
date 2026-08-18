@@ -21,7 +21,11 @@ class LanServerController {
     if (running) return;
     _store = store;
     _token = _newToken();
-    _server = await HttpServer.bind(InternetAddress.anyIPv4, port, shared: true);
+    try {
+      _server = await HttpServer.bind(InternetAddress.anyIPv4, port, shared: true);
+    } on SocketException {
+      _server = await HttpServer.bind(InternetAddress.anyIPv4, 0, shared: true);
+    }
     _port = _server!.port;
     _address = await _findLanAddress();
     unawaited(_serve(_server!));

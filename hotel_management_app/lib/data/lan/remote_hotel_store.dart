@@ -15,6 +15,8 @@ class RemoteHotelStore implements HotelDataSource {
 
   Uri _uri(String path) => Uri.parse('$baseUrl$path').replace(queryParameters: {'token': token});
 
+  Future<void> refresh() => migrate();
+
   Future<void> migrate() async {
     final response = await http.get(_uri('/api/v1/state')).timeout(const Duration(seconds: 8));
     if (response.statusCode != 200) {

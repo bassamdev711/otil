@@ -280,6 +280,7 @@ class AppController extends ChangeNotifier {
   final Map<String, BookingRecord> _activeBookingByRoom = {};
   final Map<String, int> _statusCounts = {};
   final Map<String, int> _bookingCountByGuest = {};
+  Timer? _remoteRefreshTimer;
 
   void _rebuildIndexes() {
     _guestIndex
@@ -342,7 +343,43 @@ class AppController extends ChangeNotifier {
     }
     _rebuildIndexes();
     initialized = true;
+    if (_store is RemoteHotelStore) {
+      _remoteRefreshTimer ??= Timer.periodic(const Duration(seconds: 5), (_) => _refreshRemoteState());
+    }
     notifyListeners();
+  }
+
+  Future<void> _refreshRemoteState() async {
+    if (!initialized || _store is! RemoteHotelStore) return;
+    final previousUserId = currentUser?.id;
+    try {
+      await (_store as RemoteHotelStore).refresh();
+      users = _readList('users', UserRecord.fromMap);
+      rooms = _readList('rooms', RoomRecord.fromMap);
+      guests = _readList('guests', GuestRecord.fromMap);
+      bookings = _readList('bookings', BookingRecord.fromMap);
+      hotelName = _store.readMeta('hotelName', defaultValue: hotelName);
+      UserRecord? refreshedUser;
+      if (previousUserId != null) {
+        for (final user in users) {
+          if (user.id == previousUserId) {
+            refreshedUser = user;
+            break;
+          }
+        }
+      }
+      currentUser = refreshedUser;
+      _rebuildIndexes();
+      notifyListeners();
+    } catch (_) {
+      // Keep the last known state while the phone is temporarily unreachable.
+    }
+  }
+
+  @override
+  void dispose() {
+    _remoteRefreshTimer?.cancel();
+    super.dispose();
   }
 
   List<T> _readList<T>(String key, T Function(Map) parser) => _store.readCollection(key).map(parser).toList();
