@@ -4,10 +4,13 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'data/local/backup_codec.dart';
 import 'data/local/hotel_local_store.dart';
+import 'data/lan/lan_server.dart';
+import 'data/lan/remote_hotel_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,6 +28,17 @@ final _dateFormat = DateFormat('dd/MM/yyyy');
 final _moneyFormat = NumberFormat('#,##0.00', 'en_US');
 
 const _secureStorage = FlutterSecureStorage();
+late HotelDataSource _bootStore;
+final lanServerController = LanServerController();
+
+RemoteHotelStore? _remoteStoreFromWeb() {
+  if (!kIsWeb) return null;
+  final uri = Uri.base;
+  final api = uri.queryParameters['miftahApi'];
+  final token = uri.queryParameters['miftahToken'];
+  if (api == null || token == null || api.isEmpty || token.isEmpty) return null;
+  return RemoteHotelStore(baseUrl: api, token: token);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,12 +57,21 @@ Future<void> main() async {
   runApp(const StartupLoadingApp());
 
   try {
+    final remoteStore = _remoteStoreFromWeb();
+    if (remoteStore != null) {
+      _bootStore = remoteStore;
+      await _bootStore.migrate();
+      runApp(const ProviderScope(child: HotelApp()));
+      return;
+    }
+
     await Hive.initFlutter();
     final encryptionKey = await _loadHiveKey();
     final secureBox = await Hive.openBox(
       'hotel_data_secure',
       encryptionCipher: HiveAesCipher(encryptionKey),
     );
+    _bootStore = HotelLocalStore(secureBox);
     if (await Hive.boxExists('hotel_data')) {
       final legacyBox = await Hive.openBox('hotel_data');
       if (secureBox.isEmpty && legacyBox.isNotEmpty) {
@@ -59,6 +82,7 @@ Future<void> main() async {
       await legacyBox.close();
       await Hive.deleteBoxFromDisk('hotel_data');
     }
+    if (!kIsWeb) await lanServerController.start(_bootStore);
     runApp(const ProviderScope(child: HotelApp()));
   } catch (error, stack) {
     debugPrint('Miftah startup error: $error');
@@ -243,8 +267,7 @@ class BookingRecord {
 }
 
 class AppController extends ChangeNotifier {
-  final Box _box = Hive.box('hotel_data_secure');
-  late final HotelDataSource _store = HotelLocalStore(_box);
+  late final HotelDataSource _store = _bootStore;
   bool initialized = false;
   UserRecord? currentUser;
   List<UserRecord> users = [];
@@ -936,6 +959,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(appControllerProvider);
+    final lanUrl = lanServerController.url;
     if (name.text.isEmpty) name.text = c.hotelName;
     if (!widget.isAdmin) return const Center(child: Text('هذه الصفحة متاحة لمدير النظام فقط'));
     return ListView(padding: const EdgeInsets.all(24), children: [
@@ -944,6 +968,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('المستخدمون والصلاحيات', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 12), ...c.users.map((user) => ListTile(leading: const Icon(Icons.account_circle_outlined), title: Text(user.name), subtitle: Text('${user.username} • ${roleLabel(user.role)}'), trailing: Switch(value: user.isActive, onChanged: null))), const SizedBox(height: 8), OutlinedButton.icon(onPressed: () => showAddUserDialog(context), icon: const Icon(Icons.person_add), label: const Text('إضافة مستخدم'))]))),
       const SizedBox(height: 18),
       Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('حماية البيانات', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 8), const Text('صدّر نسخة مشفرة دورياً واحفظها خارج الجهاز.'), const SizedBox(height: 14), Wrap(spacing: 10, runSpacing: 10, children: [FilledButton.icon(onPressed: () => exportBackupToFile(context), icon: const Icon(Icons.download), label: const Text('تصدير نسخة')), OutlinedButton.icon(onPressed: () => restoreBackupFromFile(context), icon: const Icon(Icons.restore), label: const Text('استعادة نسخة'))])]))),
+      const SizedBox(height: 18),
+      Card(child: Padding(padding: const EdgeInsets.all(24), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('مشاركة البيانات على الشبكة المحلية', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)), const SizedBox(height: 8), Text(lanUrl == null ? 'الخادم المحلي غير متاح. افتح التطبيق على Android ثم أعد المحاولة.' : 'افتح نسخة Web على اللابتوب باستخدام الرابط التالي. ستعمل الواجهة على قاعدة الهاتف نفسها دون نسخ البيانات.'), if (lanUrl != null) ...[const SizedBox(height: 14), SelectableText(lanUrl, style: const TextStyle(fontFamily: 'monospace')), const SizedBox(height: 10), OutlinedButton.icon(onPressed: () async { await Clipboard.setData(ClipboardData(text: lanUrl)); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ رابط خادم الهاتف'))); }, icon: const Icon(Icons.copy), label: const Text('نسخ رابط الخادم'))]]))),
       const SizedBox(height: 18),
       const Card(child: ListTile(leading: Icon(Icons.cloud_outlined), title: Text('Firebase'), subtitle: Text('جاهز للتفعيل مستقبلاً — التخزين المحلي يعمل حالياً'), trailing: Chip(label: Text('معطل')))),
     ]);

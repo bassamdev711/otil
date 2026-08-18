@@ -24,6 +24,7 @@ dependencies:
   cryptography_flutter: ^2.3.4
   intl: ^0.19.0
   uuid: ^4.4.2
+  http: ^1.2.2
   # Firebase dependencies are intentionally reserved for a future feature flag.
   # firebase_core: ^3.4.0
   # cloud_firestore: ^5.2.0
