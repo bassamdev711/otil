@@ -1,4 +1,4 @@
-package com.example.hotel_management_app
+package com.miftah.hotelmanagement
 
 import io.flutter.embedding.android.FlutterActivity
 
