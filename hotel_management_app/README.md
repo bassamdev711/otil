@@ -88,14 +88,14 @@ flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8080
 ```bash
 cd hotel_management_app
 flutter pub get
-flutter build apk --release
-flutter build appbundle --release
+flutter build apk --release --target-platform android-arm64
+flutter build appbundle --release --target-platform android-arm64
 
 # فحص iOS دون توقيع، على macOS فقط
 flutter build ios --release --no-codesign
 ```
 
-ينتج Android ملف APK للتثبيت المباشر وملف AAB للرفع إلى Google Play. النسخ الناتجة من CI تستخدم توقيع debug للتجربة الجانبية فقط؛ يلزم keystore إنتاجي قبل النشر في Google Play. أما IPA الموقّع فيتطلب فريق Apple وشهادات Provisioning على macOS.
+ينتج Android ملف APK وملف AAB بمعمارية `arm64-v8a` فقط، مخصصين للأجهزة الحديثة ذات ARM64. لا يتضمن هذا الإصدار `armeabi-v7a` أو `x86_64`. النسخ الناتجة من CI تستخدم توقيع debug للتجربة الجانبية فقط؛ يلزم keystore إنتاجي قبل النشر في Google Play. أما IPA الموقّع فيتطلب فريق Apple وشهادات Provisioning على macOS.
 
 ## الاختبار
 

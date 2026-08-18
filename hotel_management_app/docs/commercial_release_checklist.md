@@ -23,7 +23,7 @@
 | توقيع Android | keystore إنتاجي، كلمة مرور، وبيانات Play Console |
 | توقيع iOS | Apple Developer Team، Bundle ID نهائي، شهادات وProvisioning |
 | معرفات المتاجر | تأكيد أن `com.miftah.hotelmanagement` متاح ومملوك للفريق |
-| اختبار البناء | تشغيل `flutter pub get`, `flutter analyze`, `flutter test`, و`flutter build apk --release` و`flutter build appbundle --release`؛ ويفحص CI بناء iOS دون توقيع على macOS |
+| اختبار البناء | تشغيل `flutter pub get`, `flutter analyze`, `flutter test`, و`flutter build apk --release --target-platform android-arm64` و`flutter build appbundle --release --target-platform android-arm64`؛ ويفحص CI بناء iOS دون توقيع على macOS |
 | اختبار الأجهزة | هاتف Android، iPhone، iPad portrait/landscape، وDesktop مستهدف؛ يلزم اختبار فعلي قبل النشر العام |
 | النسخ والاستعادة | تجربة تصدير واستعادة على جهاز نظيف، وإثبات عدم فقدان البيانات |
 | حماية النسخة | تم اعتماد ملف `.miftah` مشفر بكلمة مرور عبر PBKDF2 وAES-GCM؛ يلزم اختبار الاستعادة عملياً |
@@ -48,4 +48,4 @@ flutter build web --release
 flutter build ios --release --no-codesign
 ```
 
-حزمة APK الناتجة من CI مناسبة للتثبيت المباشر والاختبار. حزمة AAB تحتاج keystore إنتاجياً قبل رفعها إلى Google Play. أما IPA الموقّع فيحتاج macOS وXcode وApple Developer Team وشهادات Provisioning؛ لا يمكن إنتاج IPA موقّع من Ubuntu.
+حزمة APK الناتجة من CI مناسبة للتثبيت المباشر على أجهزة Android الحديثة ARM64 فقط، ولا تحتوي على دعم 32-bit أو x86. حزمة AAB تحتاج keystore إنتاجياً قبل رفعها إلى Google Play. أما IPA الموقّع فيحتاج macOS وXcode وApple Developer Team وشهادات Provisioning؛ لا يمكن إنتاج IPA موقّع من Ubuntu.

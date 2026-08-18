@@ -52,13 +52,13 @@ jobs:
         working-directory: hotel_management_app
         run: |
           flutter pub get
-          flutter build apk --release
-          flutter build appbundle --release
+          flutter build apk --release --target-platform android-arm64
+          flutter build appbundle --release --target-platform android-arm64
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: miftah-android-apk-${{ github.sha }}
+          name: miftah-android-arm64-apk-${{ github.sha }}
           path: hotel_management_app/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
@@ -66,7 +66,7 @@ jobs:
       - name: Upload Android App Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: miftah-android-aab-${{ github.sha }}
+          name: miftah-android-arm64-aab-${{ github.sha }}
           path: hotel_management_app/build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
