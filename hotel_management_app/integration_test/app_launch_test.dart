@@ -9,7 +9,8 @@ void main() {
   testWidgets('Miftah launches on Android', (tester) async {
     await app.main();
     await tester.pumpAndSettle(const Duration(seconds: 10));
-    expect(find.textContaining('مفتاح'), findsWidgets);
+    expect(find.text('اسم المستخدم'), findsOneWidget);
+    expect(find.text('تسجيل الدخول'), findsOneWidget);
   });
 }
 

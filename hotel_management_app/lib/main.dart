@@ -28,20 +28,88 @@ const _secureStorage = FlutterSecureStorage();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  final encryptionKey = await _loadHiveKey();
-  final secureBox = await Hive.openBox('hotel_data_secure', encryptionCipher: HiveAesCipher(encryptionKey));
-  if (await Hive.boxExists('hotel_data')) {
-    final legacyBox = await Hive.openBox('hotel_data');
-    if (secureBox.isEmpty && legacyBox.isNotEmpty) {
-      for (final key in legacyBox.keys) {
-        await secureBox.put(key, legacyBox.get(key));
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('Miftah Flutter error: ${details.exception}');
+  };
+  ui.PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('Miftah platform error: $error');
+    debugPrintStack(stackTrace: stack);
+    return true;
+  };
+
+  try {
+    await Hive.initFlutter();
+    final encryptionKey = await _loadHiveKey();
+    final secureBox = await Hive.openBox(
+      'hotel_data_secure',
+      encryptionCipher: HiveAesCipher(encryptionKey),
+    );
+    if (await Hive.boxExists('hotel_data')) {
+      final legacyBox = await Hive.openBox('hotel_data');
+      if (secureBox.isEmpty && legacyBox.isNotEmpty) {
+        for (final key in legacyBox.keys) {
+          await secureBox.put(key, legacyBox.get(key));
+        }
       }
+      await legacyBox.close();
+      await Hive.deleteBoxFromDisk('hotel_data');
     }
-    await legacyBox.close();
-    await Hive.deleteBoxFromDisk('hotel_data');
+    runApp(const ProviderScope(child: HotelApp()));
+  } catch (error, stack) {
+    debugPrint('Miftah startup error: $error');
+    debugPrintStack(stackTrace: stack);
+    runApp(StartupFailureApp(error: error.toString()));
   }
-  runApp(const ProviderScope(child: HotelApp()));
+}
+
+class StartupFailureApp extends StatelessWidget {
+  const StartupFailureApp({super.key, required this.error});
+
+  final String error;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'مِفتاح',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0b7285)),
+        useMaterial3: true,
+      ),
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.hotel, size: 72, color: Color(0xff0b7285)),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'مِفتاح',
+                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'تعذر تشغيل التطبيق. أغلقه وافتحه مرة أخرى، وإذا استمرت المشكلة أرسل هذه الرسالة للدعم.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  SelectableText(
+                    error,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Future<List<int>> _loadHiveKey() async {
