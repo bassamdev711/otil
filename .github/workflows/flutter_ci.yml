@@ -104,7 +104,7 @@ jobs:
           working-directory: hotel_management_app
           script: |
             flutter pub get
-            flutter test integration_test/app_launch_test.dart
+            flutter test -d emulator-5554 integration_test/app_launch_test.dart
 
   ios-verify:
     runs-on: macos-latest
