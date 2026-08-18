@@ -1,7 +1,7 @@
 name: hotel_management_app
 description: "تطبيق إدارة الفنادق المحلي — يعمل دون اتصال"
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ^3.9.2
