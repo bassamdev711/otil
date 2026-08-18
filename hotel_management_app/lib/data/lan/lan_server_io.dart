@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/services.dart';
+
 import '../local/hotel_local_store.dart';
 
 class LanServerController {
@@ -15,7 +17,7 @@ class LanServerController {
   bool get running => _server != null;
   String? get token => _token;
   String? get address => _address;
-  String? get url => _address == null || _token == null ? null : 'http://$_address:$_port?miftahToken=${Uri.encodeQueryComponent(_token!)}';
+  String? get url => _address == null ? null : 'http://$_address:$_port';
 
   Future<void> start(HotelDataSource store, {int port = 8787}) async {
     if (running) return;
@@ -56,16 +58,36 @@ class LanServerController {
         await request.response.close();
         return;
       }
-      if (!_authorized(request)) {
-        await _write(request, HttpStatus.unauthorized, {'error': 'unauthorized'});
-        return;
-      }
       final store = _store;
       if (store == null) {
         await _write(request, HttpStatus.serviceUnavailable, {'error': 'server_not_ready'});
         return;
       }
       final path = request.uri.path;
+      if (request.method == 'GET' && path == '/' && !_authorized(request)) {
+        final webUrl = 'http://${_address ?? '127.0.0.1'}:$_port/';
+        final redirect = Uri.parse(webUrl).replace(queryParameters: {
+          'miftahApi': 'http://${_address ?? '127.0.0.1'}:$_port',
+          'miftahToken': _token!,
+        });
+        request.response
+          ..statusCode = HttpStatus.found
+          ..headers.set(HttpHeaders.locationHeader, redirect.toString());
+        await request.response.close();
+        return;
+      }
+      if (request.method == 'GET' && path.startsWith('/api/')) {
+        if (!_authorized(request)) {
+          await _write(request, HttpStatus.unauthorized, {'error': 'unauthorized'});
+          return;
+        }
+      } else if (request.method == 'GET') {
+        await _serveWebAsset(request, path);
+        return;
+      } else if (!_authorized(request)) {
+        await _write(request, HttpStatus.unauthorized, {'error': 'unauthorized'});
+        return;
+      }
       if (request.method == 'GET' && path == '/api/v1/ping') {
         await _write(request, HttpStatus.ok, {'ok': true, 'service': 'miftah-lan'});
       } else if (request.method == 'GET' && path == '/api/v1/state') {
@@ -105,7 +127,55 @@ class LanServerController {
     }
   }
 
-  bool _authorized(HttpRequest request) => request.uri.queryParameters['token'] == _token || request.headers.value('x-miftah-token') == _token;
+  bool _authorized(HttpRequest request) => request.uri.queryParameters['token'] == _token || request.uri.queryParameters['miftahToken'] == _token || request.headers.value('x-miftah-token') == _token;
+
+  Future<void> _serveWebAsset(HttpRequest request, String requestedPath) async {
+    var relative = requestedPath == '/' || requestedPath.isEmpty ? 'index.html' : requestedPath.substring(1);
+    relative = Uri.decodeComponent(relative);
+    if (relative.contains('..') || relative.contains('\\')) {
+      await _write(request, HttpStatus.badRequest, {'error': 'invalid_path'});
+      return;
+    }
+    try {
+      final data = await rootBundle.load('assets/lan_web/$relative');
+      final type = _contentType(relative);
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = type
+        ..headers.set(HttpHeaders.cacheControlHeader, relative == 'index.html' ? 'no-cache' : 'public, max-age=3600')
+        ..add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      await request.response.close();
+    } catch (_) {
+      if (relative.contains('.')) {
+        await _write(request, HttpStatus.notFound, {'error': 'asset_not_found'});
+      } else {
+        final data = await rootBundle.load('assets/lan_web/index.html');
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.html
+          ..add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        await request.response.close();
+      }
+    }
+  }
+
+  ContentType _contentType(String path) {
+    final extension = path.split('.').last.toLowerCase();
+    return switch (extension) {
+      'html' => ContentType.html,
+      'js' => ContentType('application', 'javascript', charset: 'utf-8'),
+      'json' => ContentType.json,
+      'css' => ContentType('text', 'css', charset: 'utf-8'),
+      'png' => ContentType('image', 'png'),
+      'jpg' || 'jpeg' => ContentType('image', 'jpeg'),
+      'svg' => ContentType('image', 'svg+xml'),
+      'wasm' => ContentType('application', 'wasm'),
+      'woff' || 'woff2' => ContentType('font', 'woff'),
+      'ttf' => ContentType('font', 'ttf'),
+      'ico' => ContentType('image', 'x-icon'),
+      _ => ContentType.binary,
+    };
+  }
 
   Future<void> _write(HttpRequest request, int status, Map<String, dynamic> payload) async {
     request.response.statusCode = status;
