@@ -38,6 +38,10 @@ Future<void> main() async {
     return true;
   };
 
+  // Render the first frame before any encrypted-storage work so a slow or
+  // incompatible plugin cannot leave the launcher with a blank/crashed app.
+  runApp(const StartupLoadingApp());
+
   try {
     await Hive.initFlutter();
     final encryptionKey = await _loadHiveKey();
@@ -60,6 +64,36 @@ Future<void> main() async {
     debugPrint('Miftah startup error: $error');
     debugPrintStack(stackTrace: stack);
     runApp(StartupFailureApp(error: error.toString()));
+  }
+}
+
+class StartupLoadingApp extends StatelessWidget {
+  const StartupLoadingApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'مِفتاح',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff0b7285)),
+        useMaterial3: true,
+      ),
+      home: const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.hotel, size: 72, color: Color(0xff0b7285)),
+              SizedBox(height: 18),
+              Text('مِفتاح', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+              SizedBox(height: 18),
+              CircularProgressIndicator(),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

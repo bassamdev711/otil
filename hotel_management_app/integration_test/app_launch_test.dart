@@ -8,7 +8,11 @@ void main() {
 
   testWidgets('Miftah launches on Android', (tester) async {
     await app.main();
-    await tester.pumpAndSettle(const Duration(seconds: 10));
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 30),
+    );
     expect(find.text('اسم المستخدم'), findsOneWidget);
     expect(find.text('تسجيل الدخول'), findsOneWidget);
   });
